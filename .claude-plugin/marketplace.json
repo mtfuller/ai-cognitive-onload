@@ -1,0 +1,15 @@
+{
+  "name": "ai-cognitive-onload",
+  "owner": { "name": "mtfuller" },
+  "metadata": {
+    "description": "Claude Code plugins that keep the engineer's brain in the driver's seat without slowing delivery."
+  },
+  "plugins": [
+    {
+      "name": "sysedit",
+      "source": "./plugins/sysedit",
+      "description": "System Editor: design the change on a live map of your system. Claude maps, questions with evidence, and builds only what you drew and defended.",
+      "category": "development"
+    }
+  ]
+}

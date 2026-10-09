@@ -1,0 +1,10 @@
+{
+  "name": "acme-storefront",
+  "private": true,
+  "version": "1.4.0",
+  "description": "Fixture for System Editor tests and evals: a small checkout service.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}

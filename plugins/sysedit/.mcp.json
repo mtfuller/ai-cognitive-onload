@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "sysedit": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/sysedit.mjs", "mcp"]
+    }
+  }
+}
