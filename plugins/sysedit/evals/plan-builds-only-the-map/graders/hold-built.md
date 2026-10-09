@@ -1,7 +1,6 @@
 ---
 type: regex
-pattern: 'hold'
-flags: i
+pattern: 'OrderHold|orderHold|holds?\.create\('
 target:
   source: file
   path: src/checkout/service.ts

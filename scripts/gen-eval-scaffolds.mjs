@@ -56,8 +56,9 @@ function buildChange(seed) {
   if (seed.questions && seed.questions !== 'none') {
     cs = unwrap(addQuestions(cs, fraudQuestions(), NOW)).cs
     if (seed.questions === 'answered' || ['approved', 'implemented'].includes(seed.status)) {
-      cs = unwrap(answerQuestion(cs, { questionId: 'q2', optionId: 'closed' }, NOW))
-      cs = unwrap(answerQuestion(cs, { questionId: 'q3', text: 'Keep it reserved until a reviewer decides, then release it if they reject the order.' }, NOW))
+      cs = unwrap(answerQuestion(cs, { questionId: 'q2', optionId: 'closed', quote: 'fail closed' }, NOW))
+      // An answer the map can express (it adds OrderHold.create -> InventoryService.release), so the plan can build it.
+      cs = unwrap(answerQuestion(cs, { questionId: 'q3', optionId: 'release', quote: 'release the stock as soon as the order is held' }, NOW))
     }
   }
   if (seed.status === 'in-review') return cs

@@ -21,7 +21,7 @@ cd "$(dirname "$0")/.."
 node scripts/build.mjs --check
 node scripts/gen-eval-scaffolds.mjs --check
 
-stamp="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
+stamp="$(date -u +%Y-%m-%dT%H-%M-%SZ)-$$"
 out="plugins/sysedit/evals/results/${stamp}"
 mkdir -p "$out"
 

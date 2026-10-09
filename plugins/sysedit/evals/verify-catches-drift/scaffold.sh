@@ -1412,6 +1412,12 @@ cat > '.sysedit/changes/0001-fraud-check.json' <<'SYSEDIT_FILE_EOF'
       "target": "fraud.score",
       "note": "On timeout, hold the order for review.",
       "by": "engineer"
+    },
+    {
+      "op": "addEdge",
+      "from": "orderHold.create",
+      "to": "inventory.release",
+      "by": "engineer"
     }
   ],
   "questions": [
@@ -1467,7 +1473,8 @@ cat > '.sysedit/changes/0001-fraud-check.json' <<'SYSEDIT_FILE_EOF'
       "answer": {
         "optionId": "closed",
         "at": "2026-10-01T09:00:00.000Z",
-        "changedMap": true
+        "changedMap": true,
+        "quote": "fail closed"
       }
     },
     {
@@ -1505,9 +1512,10 @@ cat > '.sysedit/changes/0001-fraud-check.json' <<'SYSEDIT_FILE_EOF'
       ],
       "status": "answered",
       "answer": {
-        "text": "Keep it reserved until a reviewer decides, then release it if they reject the order.",
+        "optionId": "release",
         "at": "2026-10-01T09:00:00.000Z",
-        "changedMap": false
+        "changedMap": true,
+        "quote": "release the stock as soon as the order is held"
       }
     },
     {
@@ -1601,7 +1609,8 @@ cat > '.sysedit/changes/0001-fraud-check.json' <<'SYSEDIT_FILE_EOF'
       "ops": [
         2,
         3,
-        6
+        6,
+        7
       ],
       "files": [
         "src/orders/hold.ts",

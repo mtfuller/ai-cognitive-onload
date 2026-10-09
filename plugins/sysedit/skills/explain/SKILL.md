@@ -15,5 +15,5 @@ Flow: $ARGUMENTS
 3. When they're done, compare their explanation with the flow's steps:
    - A step counts as **right** when they named both ends of the edge (or an obvious equivalent) in the right order.
    - Note anything important they missed or got wrong: inferred edges, timeouts, transactions, retries.
-4. Score = right steps ÷ total steps. Show them, briefly: the steps they got, the ones they missed with `file:line` evidence for each, and one sentence on the most important miss. No lecture.
-5. Call `record_explain_back` with the flow id, the change id if there is one, the score, and the missed steps as short strings.
+4. Score = right steps ÷ total steps. Call `record_explain_back` with the flow id, the change id if there is one, the score, and the missed steps as short strings.
+5. Then, as your final message, show the engineer the result, briefly: the score, the steps they got, and each step they missed or got wrong with its `file:line` evidence, plus one sentence on the most important miss. No lecture. The feedback is the point of the check, so it has to be what they read last.
