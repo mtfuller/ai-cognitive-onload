@@ -1,6 +1,6 @@
 # Testing
 
-Four suites, from cheapest to most realistic. Everything except the skill evals runs without a model, a sign-in or a network, and in CI on every push.
+Four suites, from cheapest to most realistic. Everything except the skill evals runs without a model, a sign-in or a network. `ci/github-workflows/ci.yml` runs it all on every push once moved to `.github/workflows/` (see [ci/README.md](../ci/README.md)).
 
 ```bash
 npm ci

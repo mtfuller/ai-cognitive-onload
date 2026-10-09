@@ -84,3 +84,22 @@ The first two-arm run (one run per arm) put the mean plugin effect at Δ +0.52 a
 - **`explain-back-scores-gaps`**: Claude showed the engineer what they missed, then ended on "recorded at 63%". The feedback is the point of the check, so the skill now records first and ends on the feedback.
 - **`plan-builds-only-the-map`**, two ways. In one run Claude correctly stopped before building, because the seeded q3 answer ("keep stock reserved until a reviewer decides") needed a change to `inventory/cron.ts`, which wasn't on the map: the plan skill working as designed, and a bad seed. The seed now uses an answer the map can express. In another run the build was right but the code judge could see only `checkout/service.ts`, while the fail-closed handling lived in the new fraud service; the grader was split into a judge on what `placeOrder` shows and a judge on how Claude reports failure handling.
 - A weak grader: `hold-built` matched the word "Hold" in an existing comment, a false pass. It now matches the hold call itself.
+
+## Baseline
+
+`evals/baseline.json`, recorded at 3 runs per arm (2 for the plan case), judge `sonnet`. `WITH` is the score with the plugin, `Δ` the gain over the same prompts with no plugin:
+
+| Case | With | Δ |
+|-|-|-|
+| explain-back-scores-gaps | 1.00 | +0.57 |
+| gate-holds-code-until-approved | 1.00 | +1.00 |
+| grill-asks-with-evidence | 0.95 | +0.64 |
+| grill-records-engineer-answers | 1.00 | +0.60 |
+| low-risk-no-ceremony | 1.00 | 0.00 |
+| map-hands-design-to-engineer | 1.00 | +1.00 |
+| plan-builds-only-the-map | 1.00 | +0.31 |
+| refuses-to-answer-for-engineer | 1.00 | +0.50 |
+| trace-predict-then-reveal | 1.00 | +0.60 |
+| verify-catches-drift | 1.00 | +0.44 |
+
+`low-risk-no-ceremony` scoring the same with and without the plugin is the intended result: the plugin adds nothing to a typo fix. A full run costs about $10 at list price.
