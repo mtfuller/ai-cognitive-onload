@@ -233,18 +233,25 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'record_answer',
     description:
-      "Record the ENGINEER's answer to a question: the option they picked, or their own words in `text`. Never answer for them. `ops` adds map changes their answer implies.",
+      "Record the ENGINEER's answer to a question: the option they picked, or their own words in `text`. `quote` is required: the engineer's words that give " +
+      'this answer, verbatim from what they typed (a word or two is enough, such as "q2 b"). Never answer for them, even when they ask you to; ' +
+      'instead give each open question in one line with lettered options so they can answer in seconds, or point them to /sysedit:skip. ' +
+      '`ops` adds map changes their answer implies.',
     inputSchema: obj(
       {
         questionId: { type: 'string' },
         optionId: { type: 'string' },
         text: { type: 'string', description: "The engineer's answer, in their words." },
+        quote: { type: 'string', description: 'What the engineer typed that gives this answer, verbatim.' },
         ops: { type: 'array', items: opSchema },
       },
-      ['questionId'],
+      ['questionId', 'quote'],
     ),
-    run: ({ questionId, optionId, text, ops }, { app }) => {
-      const cs = app.answer({ questionId, optionId, text, ops })
+    run: ({ questionId, optionId, text, ops, quote }, { app }) => {
+      if (typeof quote !== 'string' || quote.trim().length === 0) {
+        return { text: "Not recorded: `quote` must hold the engineer's own words for this answer. If they haven't answered, ask them.", isError: true }
+      }
+      const cs = app.answer({ questionId, optionId, text, ops, quote })
       const open = cs.questions.filter(q => q.severity === 'blocking' && q.status === 'open').length
       return { text: `Recorded. ${open} blocking question(s) still open.`, data: cs }
     },
@@ -258,9 +265,15 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'approve_change',
     description:
-      'Approve the change once the engineer says so. Refused while a blocking question is open or a suggested operation is unaccepted. After approval, writes the map covers are allowed.',
-    inputSchema: obj({}),
-    run: ({}, { app }) => ({ text: 'Approved. Plan it with /sysedit:plan.', data: app.approve() }),
+      'Approve the change once the engineer says so. `quote` is required: their words approving it, verbatim ("approve it", "yes, go ahead"). ' +
+      'Refused while a blocking question is open or a suggested operation is unaccepted. After approval, writes the map covers are allowed.',
+    inputSchema: obj({ quote: { type: 'string', description: 'What the engineer typed to approve, verbatim.' } }, ['quote']),
+    run: ({ quote }, { app }) => {
+      if (typeof quote !== 'string' || quote.trim().length === 0) {
+        return { text: "Not approved: `quote` must hold the engineer's words approving the change. Ask them whether to approve.", isError: true }
+      }
+      return { text: 'Approved. Plan it with /sysedit:plan.', data: app.approve(quote) }
+    },
   },
   {
     name: 'save_plan',
@@ -314,9 +327,20 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'skip_change',
     description:
-      "Skip the process for a change too small to need it, with the engineer's reason. The skip is logged (the skip rate is a tracked metric) and writes are let through.",
-    inputSchema: obj({ reason: { type: 'string' }, title: { type: 'string' } }, ['reason']),
-    run: ({ reason, title }, { app }) => {
+      "Skip the process for a change too small to need it, when the ENGINEER asks to. `reason` is the engineer's reason and `quote` their words asking to skip, verbatim. " +
+      'Never skip on your own initiative. The skip is logged (the skip rate is a tracked metric) and writes are let through.',
+    inputSchema: obj(
+      {
+        reason: { type: 'string' },
+        quote: { type: 'string', description: 'What the engineer typed asking to skip, verbatim.' },
+        title: { type: 'string' },
+      },
+      ['reason', 'quote'],
+    ),
+    run: ({ reason, title, quote }, { app }) => {
+      if (typeof quote !== 'string' || quote.trim().length === 0) {
+        return { text: "Not skipped: `quote` must hold the engineer's words asking to skip. Skipping is their call.", isError: true }
+      }
       const r = app.skip(reason, { title })
       return { text: r.change ? `Skipped ${r.change.id}; reason logged.` : 'Skip logged; no change was in progress.', data: r }
     },

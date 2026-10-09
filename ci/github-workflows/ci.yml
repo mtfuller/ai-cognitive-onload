@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Bundles in plugins/sysedit/dist match src/
+        run: npm run build:check
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit, integration and eval-lint tests
+        run: npm test
+
+      - name: Install Chromium for the editor tests
+        run: npx playwright install --with-deps chromium
+      - name: Editor end-to-end tests
+        run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+
+      - name: Install Claude Code
+        run: |
+          curl -fsSL https://claude.ai/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Validate the plugin and marketplace
+        run: npm run validate
+      - name: Mod tests (claude plugin test, no model calls)
+        run: npm run test:mod

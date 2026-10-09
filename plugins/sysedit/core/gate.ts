@@ -109,9 +109,9 @@ export function decide(input: GateInput): GateDecision {
         reason:
           `System Editor is holding writes to ${rel}: change "${cs.title}" is still being drawn. ` +
           (cs.ops.length === 0
-            ? 'Ask the engineer to draw the change on the map (/sysedit:map opens the editor), '
-            : 'Ask the engineer to finish the map and submit it for review, ') +
-          'or run /sysedit:skip with a reason if this change is too small for the process. Do not write code yet.',
+            ? 'Ask the engineer to draw the change on the map (/sysedit:map opens the editor). If they have already described it in their own words, transcribe that onto the map with propose_ops, quoting them, and show it back; '
+            : 'Ask the engineer to finish the map and submit it for review; ') +
+          'or they can run /sysedit:skip with a reason if this change is too small for the process. Do not write code yet.',
       }
     case 'in-review': {
       const blockers = approvalBlockers(cs)

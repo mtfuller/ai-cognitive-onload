@@ -216,7 +216,7 @@ export class Sysedit extends EventEmitter {
     return { accepted: check.accepted.map(q => q.id), dropped: check.dropped, openBlocking: openBlocking(cs).length }
   }
 
-  answer(args: { questionId: string; optionId?: string; text?: string; ops?: Op[] }): ChangeSet {
+  answer(args: { questionId: string; optionId?: string; text?: string; ops?: Op[]; quote?: string }): ChangeSet {
     return this.save(unwrap(answerQuestion(this.requireActive(), args, this.now())))
   }
 
@@ -228,8 +228,8 @@ export class Sysedit extends EventEmitter {
     return this.save(unwrap(dismissQuestion(this.requireActive(), questionId, this.now())))
   }
 
-  approve(): ChangeSet {
-    return this.save(unwrap(approve(this.requireActive(), this.now())))
+  approve(quote?: string): ChangeSet {
+    return this.save(unwrap(approve(this.requireActive(), this.now(), quote)))
   }
 
   savePlan(tasks: PlanTask[]): ChangeSet {

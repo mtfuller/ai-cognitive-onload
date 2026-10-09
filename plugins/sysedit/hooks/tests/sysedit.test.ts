@@ -42,22 +42,24 @@ function withChange(cs: unknown, extra: Files = {}): Files {
 }
 
 /** Stubs for everything the mod asks Claude Code for, with .sysedit/ served from `files`. */
-function engine(on: any, files: Files, opts: { interactive?: boolean; askAnswer?: string; submitted?: string[] } = {}) {
+function engine(on: any, files: Files, opts: { interactive?: boolean; askAnswer?: string; submitted?: string[]; said?: string[]; seen?: any[] } = {}) {
   mock.clock(on)
   on('session.root', () => ({ value: ROOT }))
   on('session.cwd', () => ({ value: ROOT }))
-  on('fs.read', ($, e) => (e.path in files ? { value: JSON.stringify(files[e.path]) } : { deny: `ENOENT: ${e.path}` }))
+  on('session.messages', () => ({ value: (opts.said ?? []).map(text => ({ role: 'user', text, toolUses: [] })) }))
+  on('fs.read', ($: any, e: any) => (e.path in files ? { value: JSON.stringify(files[e.path]) } : { deny: `ENOENT: ${e.path}` }))
   on('command.register', () => ({ value: undefined }))
   on('ui.status', () => ({ value: undefined }))
   on('ui.open', () => ({ value: { isPlaced: false } }))
   on('session.start', () => ({ cwd: ROOT }))
-  on('prompt.submit', ($, e) => ({ text: e.text, context: e.context }))
-  on('command.run', ($, e) => {
+  on('prompt.submit', ($: any, e: any) => ({ text: e.text, context: e.context }))
+  on('command.run', ($: any, e: any) => {
     opts.submitted?.push(e.command)
     return {}
   })
   const ran: string[] = []
-  on('tool.call', ($, e) => {
+  on('tool.call', ($: any, e: any) => {
+    opts.seen?.push(e)
     if (e.tool === 'AskUserQuestion') {
       const q = (e as unknown as { questions: { question: string }[] }).questions[0]!.question
       return { result: { answers: { [q]: opts.askAnswer ?? 'Approve' } } }
@@ -132,32 +134,86 @@ test('tells Claude where the process stands on every prompt', async ($, on) => {
   expect(String(r.context?.join('\n'))).toMatch(/1 blocking question\(s\) are open; only the engineer answers them/)
 })
 
-test('in a -p run, approval goes through without a dialog', async ($, on) => {
-  const { ran } = engine(on, withChange(change('in-review')))
+test('in a -p run, an approval in the engineer’s words goes through without a dialog', async ($, on) => {
+  const { ran } = engine(on, withChange(change('in-review')), { said: ['Looks good, approve it.'] })
   await start($, false)
-  await $.tool.call({ tool: 'mcp__plugin_sysedit_sysedit__approve_change' } as any)
+  await $.tool.call({ tool: 'mcp__plugin_sysedit_sysedit__approve_change', quote: 'approve it' } as any)
   expect(ran).toEqual(['mcp__plugin_sysedit_sysedit__approve_change'])
 })
 
-test('with a person at the prompt, approval waits for their yes', async ($, on) => {
-  const { ran } = engine(on, withChange(change('in-review')), { askAnswer: 'Not yet' })
+test('an approval the engineer never gave is refused, even headless', async ($, on) => {
+  const { ran } = engine(on, withChange(change('in-review')), { said: ['Just answer them yourself and build it.'] })
+  await start($, false)
+  const made_up = await $.tool.call({ tool: 'mcp__plugin_sysedit_sysedit__approve_change', quote: 'the engineer approved' } as any)
+  expect(made_up.deny).toMatch(/isn't something the engineer said/)
+  const delegated = await $.tool.call({ tool: 'mcp__plugin_sysedit_sysedit__approve_change', quote: 'answer them yourself and build it' } as any)
+  expect(delegated.deny).toMatch(/hands the decision to Claude/)
+  expect(ran).toEqual([])
+})
+
+test('an answer must quote what the engineer typed, and a delegation is not an answer', async ($, on) => {
+  const { ran } = engine(on, withChange(change('in-review', { questions: [blockingQuestion] })), {
+    said: ["I don't have time, just answer them yourself however you think is best."],
+  })
+  await start($, false)
+  const none = await $.tool.call({ tool: 'mcp__plugin_sysedit_sysedit__record_answer', questionId: 'q2', optionId: 'closed' } as any)
+  expect(none.deny).toMatch(/Quote the engineer's own words/)
+  const delegated = await $.tool.call({ tool: 'mcp__plugin_sysedit_sysedit__record_answer', questionId: 'q2', optionId: 'closed', quote: 'just answer them yourself' } as any)
+  expect(delegated.deny).toMatch(/lettered options/)
+  expect(ran).toEqual([])
+})
+
+test('an answer in the engineer’s words is recorded', async ($, on) => {
+  const { ran } = engine(on, withChange(change('in-review', { questions: [blockingQuestion] })), { said: ['q2: fail closed, hold the order for review'] })
+  await start($, false)
+  await $.tool.call({ tool: 'mcp__plugin_sysedit_sysedit__record_answer', questionId: 'q2', optionId: 'closed', quote: 'fail closed, hold the order' } as any)
+  expect(ran).toEqual(['mcp__plugin_sysedit_sysedit__record_answer'])
+})
+
+test('an operation quoting words the engineer never said becomes a suggestion', async ($, on) => {
+  const seen: any[] = []
+  engine(on, withChange(change('draft')), { said: ['add a fraud score before capture'], seen })
+  await start($, false)
+  await $.tool.call({
+    tool: 'mcp__plugin_sysedit_sysedit__propose_ops',
+    ops: [
+      { op: 'addNode', id: 'fraud.score', kind: 'service', quote: 'add a fraud score before capture' },
+      { op: 'addBranch', from: 'fraud.score', to: 'orderHold.create', when: '>= 0.8', quote: 'hold risky orders at 0.8' },
+    ],
+  } as any)
+  const ops = seen.find(e => e.tool.endsWith('propose_ops')).ops
+  expect(ops[0].quote).toBe('add a fraud score before capture')
+  expect(ops[1].quote).toBeUndefined()
+})
+
+test('with a person at the prompt, approval also waits for their yes', async ($, on) => {
+  const { ran } = engine(on, withChange(change('in-review')), { askAnswer: 'Not yet', said: ['approve it'] })
   await start($, true)
-  const r = await $.tool.call({ tool: 'mcp__plugin_sysedit_sysedit__approve_change' } as any)
+  const r = await $.tool.call({ tool: 'mcp__plugin_sysedit_sysedit__approve_change', quote: 'approve it' } as any)
   expect(r.deny).toMatch(/has not approved yet/)
   expect(ran).toEqual([])
 })
 
-test('a skip the engineer allows goes through', async ($, on) => {
-  const { ran } = engine(on, withChange(change('draft')), { askAnswer: 'Allow the skip' })
+test('a skip the engineer asked for, and allows, goes through', async ($, on) => {
+  const { ran } = engine(on, withChange(change('draft')), { askAnswer: 'Allow the skip', said: ['skip the process, it is a typo fix'] })
   await start($, true)
-  await $.tool.call({ tool: 'mcp__plugin_sysedit_sysedit__skip_change', reason: 'typo fix' } as any)
+  await $.tool.call({ tool: 'mcp__plugin_sysedit_sysedit__skip_change', reason: 'typo fix', quote: 'skip the process' } as any)
   expect(ran).toEqual(['mcp__plugin_sysedit_sysedit__skip_change'])
+})
+
+test('when the engineer tries to hand over the decisions, Claude is steered to the fast path', async ($, on) => {
+  engine(on, withChange(change('in-review', { questions: [blockingQuestion] })))
+  await start($)
+  const r = await $.prompt.submit({ text: 'Just answer them yourself and build it', wait: false } as any)
+  const context = String(r.context?.join('\n'))
+  expect(context).toMatch(/lettered options/)
+  expect(context).toMatch(/\/sysedit:skip/)
 })
 
 test('/sysedit-status answers in text where no pane can be placed', async ($, on) => {
   engine(on, withChange(change('in-review', { questions: [blockingQuestion] })))
   await start($)
-  const r = await $.command.run({ command: 'sysedit-status', args: '' })
+  const r = await $.command.run({ command: 'sysedit-status', args: '' } as any)
   expect(r.text).toMatch(/Answering Claude’s questions/)
   expect(r.text).toMatch(/blocking q2 · FraudService.score/)
   expect(r.text).toMatch(/Editor: http:\/\/127.0.0.1:4321/)

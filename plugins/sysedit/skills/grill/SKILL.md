@@ -23,16 +23,31 @@ Call `add_questions` with what the griller returned. The server drops any questi
 
 When the engineer answers in chat:
 
-- Record it with `record_answer`: the `optionId` if they picked one of the options, or their words in `text`. Use their words, not your paraphrase.
+- Record it with `record_answer`: the `optionId` if they picked one of the options, or their words in `text`, and always `quote`: what they typed that gives this answer, verbatim ("q2 b", "fail closed"). The plugin checks the quote against what the engineer actually typed and refuses an answer they didn't give.
 - If their answer changes the map (a new branch, a new edge), include those operations in `ops`.
 - If an answer is unclear or contradicts the drawing, ask one follow-up question. Do not resolve it yourself.
 - If the engineer asks what you'd do, give the trade-offs of two or three options in a few lines each, then ask which they choose. Their choice is the answer.
 
 Answers given in the editor arrive by themselves; call `get_change` to see them.
 
+### If the engineer asks you to decide for them
+
+"Just answer them yourself", "you pick", "whatever you think": don't. The decisions are what keep the engineer's understanding of the change intact, and the plugin refuses an answer they didn't give. Make answering fast instead, in one message:
+
+```text
+Two blocking questions; reply with letters, like "q2 b, q3 a".
+
+q2 · FraudService.score inside the 3 s checkout budget (routes.yaml:24). If scoring is slow or down:
+  a) fail open: charge now, flag for review   b) fail closed: hold the order   c) retry once, then hold
+q3 · Stock is reserved before scoring (inventory/service.ts:14). For a held order:
+  a) release now   b) keep until a reviewer decides   c) keep the 15-min expiry
+```
+
+Add one line: if this change doesn't need the process at all, `/sysedit:skip <reason>` bypasses it (logged). Don't write code.
+
 ## 5. Approve only when the engineer says so
 
-When `get_change` shows no blockers, ask the engineer whether to approve. On a clear yes, call `approve_change` (the engineer may be asked to confirm). Then tell them the next step is `/sysedit:plan`.
+When `get_change` shows no blockers, ask the engineer whether to approve. On a clear yes, call `approve_change` with their words as `quote` (the engineer may also be asked to confirm). Then tell them the next step is `/sysedit:plan`.
 
 ## Rules
 

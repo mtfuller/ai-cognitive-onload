@@ -102,6 +102,8 @@ export type Answer = {
   at: string
   /** True when the answer changed the map. Feeds the grill hit-rate metric. */
   changedMap?: boolean
+  /** The engineer's words, when Claude recorded the answer from chat. Absent for answers given in the editor. */
+  quote?: string
 }
 
 export type Question = {
@@ -608,7 +610,7 @@ export function addQuestions(cs: ChangeSet, incoming: Partial<Question>[], now: 
 
 export function answerQuestion(
   cs: ChangeSet,
-  args: { questionId: string; optionId?: string; text?: string; ops?: Op[] },
+  args: { questionId: string; optionId?: string; text?: string; ops?: Op[]; quote?: string },
   now: string,
 ): Result<ChangeSet> {
   if (cs.status !== 'in-review') return fail(`answers are recorded while the change is in review; it is ${cs.status}`)
@@ -624,6 +626,7 @@ export function answerQuestion(
     ...(text && { text }),
     at: now,
     changedMap: mapOps.length > 0,
+    ...(args.quote && { quote: args.quote }),
   }
   const questions = cs.questions.map(x => (x.id === q.id ? { ...x, status: 'answered' as const, answer } : x))
   return done(touch({ ...cs, questions, ops: [...cs.ops, ...mapOps] }, now, 'answered', q.id))
@@ -660,10 +663,10 @@ export function approvalBlockers(cs: ChangeSet): string[] {
   return out
 }
 
-export function approve(cs: ChangeSet, now: string): Result<ChangeSet> {
+export function approve(cs: ChangeSet, now: string, quote?: string): Result<ChangeSet> {
   const blockers = approvalBlockers(cs)
   if (blockers.length > 0) return fail(blockers.join('; '))
-  return done(touch({ ...cs, status: 'approved' }, now, 'approved'))
+  return done(touch({ ...cs, status: 'approved' }, now, 'approved', quote))
 }
 
 /**

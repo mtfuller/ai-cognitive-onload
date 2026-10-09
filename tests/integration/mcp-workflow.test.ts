@@ -51,9 +51,23 @@ describe('the MCP server', () => {
   })
 
   it('reports tool failures as tool errors, not protocol errors', async () => {
-    const r = await mcp.call('approve_change')
+    const r = await mcp.call('approve_change', { quote: 'approve' })
     expect(r.isError).toBe(true)
     expect(r.text).toMatch(/no change in progress/)
+  })
+
+  it("won't record an answer, approval or skip without the engineer's words", async () => {
+    await mcp.call('save_model', { model: goldenModel() })
+    await mcp.call('start_change', { title: 'Fraud', request: 'fraud check' })
+    for (const [tool, args] of [
+      ['record_answer', { questionId: 'q2', optionId: 'closed' }],
+      ['approve_change', {}],
+      ['skip_change', { reason: 'small' }],
+    ] as const) {
+      const r = await mcp.call(tool, args)
+      expect(r.isError, tool).toBe(true)
+      expect(r.text).toMatch(/quote/)
+    }
   })
 
   it('refuses to save a model without evidence, and says why', async () => {
@@ -111,11 +125,11 @@ describe('the process, end to end', () => {
     expect(held).toMatch(/2 blocking questions to answer \(q2, q3\)/)
 
     // The engineer answers
-    await mcp.call('record_answer', { questionId: 'q2', optionId: 'closed' })
-    await mcp.call('record_answer', { questionId: 'q3', text: 'Keep it reserved until a reviewer decides, max 24h.' })
+    await mcp.call('record_answer', { questionId: 'q2', optionId: 'closed', quote: 'fail closed' })
+    await mcp.call('record_answer', { questionId: 'q3', text: 'Keep it reserved until a reviewer decides, max 24h.', quote: 'Keep it reserved until a reviewer decides, max 24h.' })
 
     // Approval still refused: Claude's suggestion hasn't been accepted
-    const refused = await mcp.call('approve_change')
+    const refused = await mcp.call('approve_change', { quote: 'approve it' })
     expect(refused.isError).toBe(true)
     expect(refused.text).toMatch(/suggested by Claude/)
 
@@ -132,7 +146,7 @@ describe('the process, end to end', () => {
     expect(res.status).toBe(200)
 
     // Approve: the gate opens
-    expect((await mcp.call('approve_change')).isError).toBe(false)
+    expect((await mcp.call('approve_change', { quote: 'approve it' })).isError).toBe(false)
     expect(gate('src/fraud/service.ts')).toBe('')
 
     // Plan: refused when it builds off the map, accepted when it covers the map
@@ -189,7 +203,7 @@ describe('the process, end to end', () => {
     await mcp.call('save_model', { model: goldenModel() })
     await mcp.call('start_change', { title: 'Receipt typo', request: 'Fix the typo in the receipt email' })
     expect(gate('workers/email/index.ts')).not.toBe('')
-    const r = await mcp.call('skip_change', { reason: 'one-word typo in a template' })
+    const r = await mcp.call('skip_change', { reason: 'one-word typo in a template', quote: 'skip it, one-word typo' })
     expect(r.text).toMatch(/Skipped 0001-receipt-typo; reason logged/)
     expect(gate('workers/email/index.ts')).toBe('')
     const log = readFileSync(join(repo.dir, '.sysedit', 'skips.jsonl'), 'utf8')

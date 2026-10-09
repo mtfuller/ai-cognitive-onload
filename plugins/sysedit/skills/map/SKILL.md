@@ -48,6 +48,10 @@ Call `save_model` with each slice and `merge: true` (the first slice may omit me
    - **Draw** the change in the Edit tab: add, remove or reroute boxes and arrows, and write what they're trying to do. Then press *Submit for Claude's review*.
    - Nothing is built until they have drawn it and answered your questions about it.
 
+## If the engineer has already described the change
+
+If the request already says how the change should work ("call FraudService.score before capture and hold the order at 0.8 or more"), that is the engineer's design: don't make them redraw it. Transcribe it with `propose_ops`, one operation per thing they said, each with the words it came from in `quote`, and record their intent with `set_intent` if they gave one. Show the result back as a short list (and the editor link) and ask what's missing or wrong. Anything you add that they didn't say is a suggestion (no quote) they must accept.
+
 ## If the engineer can't open the browser
 
 Show the flow with `render_mermaid` (flow id) and walk it as a numbered list with `file:line` for each step. Ask the engineer to describe the change as concrete edits to the map ("add FraudService.score between placeOrder and capture; branch at 0.8 to a new OrderHold"). Transcribe exactly what they said with `propose_ops`, putting their words in each operation's `quote`, and ask them for the intent in one or two sentences (`set_intent`). Then `submit_change` when they say it's ready.

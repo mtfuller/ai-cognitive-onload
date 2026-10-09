@@ -1,0 +1,62 @@
+name: Evals
+
+# Model-graded evals of the sysedit skills with `claude plugin eval`.
+# Smoke cases run on PRs that change what Claude reads (skills, agents, hooks,
+# MCP tool descriptions); the full suite runs weekly and on demand. Needs the
+# ANTHROPIC_API_KEY secret.
+
+on:
+  pull_request:
+    paths:
+      - 'plugins/sysedit/skills/**'
+      - 'plugins/sysedit/agents/**'
+      - 'plugins/sysedit/hooks/**'
+      - 'plugins/sysedit/evals/**'
+      - 'src/mcp/**'
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Only cases with this tag (blank for all)'
+        required: false
+      runs:
+        description: 'Runs per case per arm'
+        required: false
+        default: '3'
+
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      SYSEDIT_EVAL_MODEL: claude-sonnet-5-5
+      SYSEDIT_JUDGE_MODEL: claude-sonnet-5-5
+      SYSEDIT_EVAL_BUDGET: '40'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Claude Code
+        run: |
+          curl -fsSL https://claude.ai/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Run evals
+        run: |
+          args=()
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            args+=(--tag smoke --runs 1)
+          else
+            [[ -n "${{ inputs.tag }}" ]] && args+=(--tag "${{ inputs.tag }}")
+            args+=(--runs "${{ inputs.runs || '3' }}" -j 4)
+          fi
+          bash scripts/run-evals.sh "${args[@]}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-results
+          path: plugins/sysedit/evals/results/

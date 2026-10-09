@@ -506,7 +506,8 @@ function answerQuestion(cs, args, now) {
     ...option && { optionId: option.id },
     ...text2 && { text: text2 },
     at: now,
-    changedMap: mapOps.length > 0
+    changedMap: mapOps.length > 0,
+    ...args.quote && { quote: args.quote }
   };
   const questions = cs.questions.map((x) => x.id === q.id ? { ...x, status: "answered", answer } : x);
   return done(touch({ ...cs, questions, ops: [...cs.ops, ...mapOps] }, now, "answered", q.id));
@@ -538,10 +539,10 @@ function approvalBlockers(cs) {
   if (cs.ops.length === 0) out.push("the map has no changes");
   return out;
 }
-function approve(cs, now) {
+function approve(cs, now, quote) {
   const blockers = approvalBlockers(cs);
   if (blockers.length > 0) return fail(blockers.join("; "));
-  return done(touch({ ...cs, status: "approved" }, now, "approved"));
+  return done(touch({ ...cs, status: "approved" }, now, "approved", quote));
 }
 function checkPlan(cs, tasks) {
   const problems = [];
@@ -698,7 +699,7 @@ function decide(input) {
     case "draft":
       return {
         allow: false,
-        reason: `System Editor is holding writes to ${rel}: change "${cs.title}" is still being drawn. ` + (cs.ops.length === 0 ? "Ask the engineer to draw the change on the map (/sysedit:map opens the editor), " : "Ask the engineer to finish the map and submit it for review, ") + "or run /sysedit:skip with a reason if this change is too small for the process. Do not write code yet."
+        reason: `System Editor is holding writes to ${rel}: change "${cs.title}" is still being drawn. ` + (cs.ops.length === 0 ? "Ask the engineer to draw the change on the map (/sysedit:map opens the editor). If they have already described it in their own words, transcribe that onto the map with propose_ops, quoting them, and show it back; " : "Ask the engineer to finish the map and submit it for review; ") + "or they can run /sysedit:skip with a reason if this change is too small for the process. Do not write code yet."
       };
     case "in-review": {
       const blockers = approvalBlockers(cs);
@@ -1321,8 +1322,8 @@ var Sysedit = class extends EventEmitter {
   dismiss(questionId) {
     return this.save(unwrap(dismissQuestion(this.requireActive(), questionId, this.now())));
   }
-  approve() {
-    return this.save(unwrap(approve(this.requireActive(), this.now())));
+  approve(quote) {
+    return this.save(unwrap(approve(this.requireActive(), this.now(), quote)));
   }
   savePlan(tasks) {
     return this.save(unwrap(savePlan(this.requireActive(), tasks, this.now())));
@@ -1781,18 +1782,22 @@ ${r.dropped.map((d) => `  ${d.id}: ${d.reason}`).join("\n")}` : ""),
   },
   {
     name: "record_answer",
-    description: "Record the ENGINEER's answer to a question: the option they picked, or their own words in `text`. Never answer for them. `ops` adds map changes their answer implies.",
+    description: "Record the ENGINEER's answer to a question: the option they picked, or their own words in `text`. `quote` is required: the engineer's words that give this answer, verbatim from what they typed (a word or two is enough, such as \"q2 b\"). Never answer for them, even when they ask you to; instead give each open question in one line with lettered options so they can answer in seconds, or point them to /sysedit:skip. `ops` adds map changes their answer implies.",
     inputSchema: obj(
       {
         questionId: { type: "string" },
         optionId: { type: "string" },
         text: { type: "string", description: "The engineer's answer, in their words." },
+        quote: { type: "string", description: "What the engineer typed that gives this answer, verbatim." },
         ops: { type: "array", items: opSchema }
       },
-      ["questionId"]
+      ["questionId", "quote"]
     ),
-    run: ({ questionId, optionId, text: text2, ops }, { app }) => {
-      const cs = app.answer({ questionId, optionId, text: text2, ops });
+    run: ({ questionId, optionId, text: text2, ops, quote }, { app }) => {
+      if (typeof quote !== "string" || quote.trim().length === 0) {
+        return { text: "Not recorded: `quote` must hold the engineer's own words for this answer. If they haven't answered, ask them.", isError: true };
+      }
+      const cs = app.answer({ questionId, optionId, text: text2, ops, quote });
       const open = cs.questions.filter((q) => q.severity === "blocking" && q.status === "open").length;
       return { text: `Recorded. ${open} blocking question(s) still open.`, data: cs };
     }
@@ -1805,9 +1810,14 @@ ${r.dropped.map((d) => `  ${d.id}: ${d.reason}`).join("\n")}` : ""),
   },
   {
     name: "approve_change",
-    description: "Approve the change once the engineer says so. Refused while a blocking question is open or a suggested operation is unaccepted. After approval, writes the map covers are allowed.",
-    inputSchema: obj({}),
-    run: ({}, { app }) => ({ text: "Approved. Plan it with /sysedit:plan.", data: app.approve() })
+    description: 'Approve the change once the engineer says so. `quote` is required: their words approving it, verbatim ("approve it", "yes, go ahead"). Refused while a blocking question is open or a suggested operation is unaccepted. After approval, writes the map covers are allowed.',
+    inputSchema: obj({ quote: { type: "string", description: "What the engineer typed to approve, verbatim." } }, ["quote"]),
+    run: ({ quote }, { app }) => {
+      if (typeof quote !== "string" || quote.trim().length === 0) {
+        return { text: "Not approved: `quote` must hold the engineer's words approving the change. Ask them whether to approve.", isError: true };
+      }
+      return { text: "Approved. Plan it with /sysedit:plan.", data: app.approve(quote) };
+    }
   },
   {
     name: "save_plan",
@@ -1856,9 +1866,19 @@ ${r.dropped.map((d) => `  ${d.id}: ${d.reason}`).join("\n")}` : ""),
   },
   {
     name: "skip_change",
-    description: "Skip the process for a change too small to need it, with the engineer's reason. The skip is logged (the skip rate is a tracked metric) and writes are let through.",
-    inputSchema: obj({ reason: { type: "string" }, title: { type: "string" } }, ["reason"]),
-    run: ({ reason, title }, { app }) => {
+    description: "Skip the process for a change too small to need it, when the ENGINEER asks to. `reason` is the engineer's reason and `quote` their words asking to skip, verbatim. Never skip on your own initiative. The skip is logged (the skip rate is a tracked metric) and writes are let through.",
+    inputSchema: obj(
+      {
+        reason: { type: "string" },
+        quote: { type: "string", description: "What the engineer typed asking to skip, verbatim." },
+        title: { type: "string" }
+      },
+      ["reason", "quote"]
+    ),
+    run: ({ reason, title, quote }, { app }) => {
+      if (typeof quote !== "string" || quote.trim().length === 0) {
+        return { text: "Not skipped: `quote` must hold the engineer's words asking to skip. Skipping is their call.", isError: true };
+      }
       const r = app.skip(reason, { title });
       return { text: r.change ? `Skipped ${r.change.id}; reason logged.` : "Skip logged; no change was in progress.", data: r };
     }
