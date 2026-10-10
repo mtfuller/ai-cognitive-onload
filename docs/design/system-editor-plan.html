@@ -1,0 +1,549 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>System Editor Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+/* Layout: one reading column (max 1040px) with full-width tables and diagrams; owner colour (you / Claude / repo) carries meaning everywhere */
+:root {
+  --paper: #F5F5F1;
+  --surface: #FFFFFF;
+  --ink: #1A1B1E;
+  --muted: #595B61;
+  --rule: #DCDCD5;
+  --human: #2457C5;
+  --human-bg: #E8EEFB;
+  --claude: #8F5400;
+  --claude-bg: #FBF0DE;
+  --repo-bg: #ECECE6;
+  --ok: #1D7347;
+  --risk: #B42318;
+  --code-bg: #1A1B1E;
+  --code-fg: #E9E8E2;
+  --font-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #131417; --surface: #1B1C20; --ink: #ECECE7; --muted: #A4A6AC; --rule: #34363C;
+    --human: #92B2F6; --human-bg: #1E2945; --claude: #E7B76A; --claude-bg: #3A2B13; --repo-bg: #25262B;
+    --ok: #72D0A0; --risk: #F28B82; --code-bg: #0D0E10; --code-fg: #E9E8E2; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #131417; --surface: #1B1C20; --ink: #ECECE7; --muted: #A4A6AC; --rule: #34363C;
+  --human: #92B2F6; --human-bg: #1E2945; --claude: #E7B76A; --claude-bg: #3A2B13; --repo-bg: #25262B;
+  --ok: #72D0A0; --risk: #F28B82; --code-bg: #0D0E10; --code-fg: #E9E8E2; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--paper); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.6; }
+.wrap { max-width: 1040px; margin: 0 auto; padding: 48px 24px 80px; display: flex; flex-direction: column; gap: 72px; }
+@media (max-width: 600px) { .wrap { padding: 32px 16px 64px; gap: 56px; } }
+
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: clamp(40px, 7vw, 64px); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: clamp(28px, 4vw, 36px); font-weight: 600; }
+h3 { font-size: 21px; font-weight: 600; }
+p { margin: 0; max-width: 68ch; }
+a { color: var(--human); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--human); outline-offset: 2px; }
+code, .mono { font-family: var(--font-mono); font-size: 0.88em; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.lede { font-size: 20px; line-height: 1.5; color: var(--ink); max-width: 60ch; }
+.muted { color: var(--muted); }
+section { display: flex; flex-direction: column; gap: 20px; }
+.section-head { display: flex; flex-direction: column; gap: 8px; }
+
+/* header */
+.top { display: flex; flex-direction: column; gap: 24px; }
+.top nav { display: flex; flex-wrap: wrap; gap: 8px; }
+.top nav a { font-size: 14px; text-decoration: none; color: var(--ink); padding: 6px 12px; border: 1px solid var(--rule); border-radius: 999px; background: var(--surface); }
+.top nav a:hover { border-color: var(--human); color: var(--human); }
+
+/* owner chips */
+.who { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
+.who.you { background: var(--human-bg); color: var(--human); }
+.who.claude { background: var(--claude-bg); color: var(--claude); }
+.who.repo { background: var(--repo-bg); color: var(--muted); }
+
+/* why strip */
+.why { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.fact { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 20px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.fact .num { font-family: var(--font-display); font-size: 36px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+.fact p { font-size: 15px; color: var(--muted); }
+
+/* flows */
+.flows { display: flex; flex-direction: column; gap: 24px; }
+.flow { display: flex; flex-direction: column; gap: 10px; }
+.flow h3 { font-size: 18px; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; counter-reset: s; }
+.steps li { counter-increment: s; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 1.4; min-width: 0; }
+.steps li::before { content: counter(s); font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.steps li.skim { border-style: dashed; }
+.steps li.decide { border: 2px solid var(--human); }
+.flow-note { font-size: 14px; color: var(--muted); }
+
+/* diagram */
+.diagram { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; padding: 16px; overflow-x: auto; }
+.diagram svg { display: block; width: 100%; min-width: 760px; height: auto; }
+.d-lane { fill: var(--paper); }
+.d-lane-label { fill: var(--muted); font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; }
+.d-box-you { fill: var(--human-bg); stroke: var(--human); stroke-width: 1.5; }
+.d-box-claude { fill: var(--claude-bg); stroke: var(--claude); stroke-width: 1.5; }
+.d-box-repo { fill: var(--repo-bg); stroke: var(--rule); stroke-width: 1.5; }
+.d-title { fill: var(--ink); font-family: var(--font-body); font-size: 14px; font-weight: 600; }
+.d-sub { fill: var(--muted); font-family: var(--font-mono); font-size: 11px; }
+.d-line { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+.d-line-dash { stroke: var(--ok); stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+.d-head { fill: var(--muted); }
+.d-head-ok { fill: var(--ok); }
+.d-label { fill: var(--muted); font-family: var(--font-body); font-size: 11px; }
+.d-label-ok { fill: var(--ok); font-family: var(--font-body); font-size: 11px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; color: var(--muted); align-items: center; }
+
+/* two-up code */
+.twoup { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.codecard { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.codecard .cap { font-size: 14px; color: var(--muted); }
+pre { margin: 0; background: var(--code-bg); color: var(--code-fg); border-radius: 10px; padding: 16px; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; overflow-x: auto; }
+
+/* tables */
+.tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; }
+table { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 14px; line-height: 1.45; }
+th, td { text-align: left; vertical-align: top; padding: 12px 14px; border-bottom: 1px solid var(--rule); }
+th { font-family: var(--font-mono); font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); background: var(--paper); }
+tr:last-child td { border-bottom: 0; }
+td.name { font-family: var(--font-mono); font-size: 13px; white-space: nowrap; }
+td.ph { font-family: var(--font-mono); font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.kind { display: inline-block; font-family: var(--font-mono); font-size: 11px; padding: 2px 7px; border-radius: 4px; border: 1px solid var(--rule); white-space: nowrap; color: var(--ink); }
+.rec { color: var(--ok); font-weight: 600; }
+
+/* principles */
+.principles { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.principle { border-top: 2px solid var(--ink); padding-top: 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.principle h3 { font-size: 18px; }
+.principle p { font-size: 15px; color: var(--muted); }
+
+/* roadmap */
+.roadmap { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
+.phase { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 0 24px; }
+.phase-mark { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding-top: 4px; position: relative; }
+.phase-mark .pn { font-family: var(--font-display); font-size: 28px; font-weight: 700; line-height: 1; }
+.phase-mark .size { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.phase-body { border-left: 2px solid var(--rule); padding: 0 0 40px 24px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.phase:last-child .phase-body { padding-bottom: 0; }
+.phase-body h3 { font-size: 22px; }
+.phase-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.phase-cols h4 { margin: 0 0 6px; font-family: var(--font-mono); font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.phase-cols ul { margin: 0; padding-left: 18px; font-size: 15px; display: flex; flex-direction: column; gap: 4px; }
+.exit { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 14px; font-size: 15px; }
+.exit b { color: var(--ok); }
+@media (max-width: 640px) {
+  .phase { grid-template-columns: 1fr; }
+  .phase-mark { flex-direction: row; align-items: baseline; gap: 12px; padding-bottom: 8px; }
+  .phase-body { border-left: 0; padding-left: 0; }
+}
+
+/* metrics + risks */
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.metric { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.metric b { font-size: 15px; }
+.metric span { font-size: 14px; color: var(--muted); line-height: 1.45; }
+.risks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.risks li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 4px 24px; padding-bottom: 12px; border-bottom: 1px solid var(--rule); }
+.risks li:last-child { border-bottom: 0; }
+.risks .r { font-weight: 600; }
+.risks .m { color: var(--muted); font-size: 15px; }
+@media (max-width: 640px) { .risks li { grid-template-columns: 1fr; } }
+
+.sources { display: flex; flex-direction: column; gap: 6px; font-size: 14px; padding-top: 24px; border-top: 1px solid var(--rule); }
+.sources ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+
+<header class="top">
+  <span class="eyebrow">Claude Code plugin · proposal</span>
+  <h1>System Editor</h1>
+  <p class="lede">You design the change on a live map of your system. Claude draws the map, questions your decision, then writes the code you approved.</p>
+  <nav aria-label="Sections">
+    <a href="#why">Why</a>
+    <a href="#flow">The workflow</a>
+    <a href="#how">How it works</a>
+    <a href="#build">What we build</a>
+    <a href="#editor">Where the editor lives</a>
+    <a href="#roadmap">Roadmap</a>
+    <a href="#measure">Measuring it</a>
+  </nav>
+</header>
+
+<section id="why">
+  <div class="section-head">
+    <span class="eyebrow">Why</span>
+    <h2>Approving AI output isn't the same as understanding it</h2>
+  </div>
+  <p>Spec-driven agent workflows hand engineers thousands of lines of spec and diff to approve. Nobody has time to read them, so the approval becomes a skim. The engineer ends up verifying AI output instead of solving the problem, and the research suggests that's where skills erode.</p>
+  <div class="why">
+    <div class="fact">
+      <span class="num">17%</span>
+      <p>Lower comprehension scores for developers who learned a new library with AI help, in Anthropic's randomized trial. The speed gain wasn't statistically significant.</p>
+    </div>
+    <div class="fact">
+      <span class="num">65–86%</span>
+      <p>Quiz scores for AI users with high-scoring interaction patterns, against 24–39% for low-scoring ones. How you use the AI matters more than whether you use it.</p>
+    </div>
+    <div class="fact">
+      <span class="num">Strategic</span>
+      <p>The offloading that keeps the person thinking: AI as a thinking partner, with the person keeping agency. The opposite, habitual offloading, uses AI as a replacement.</p>
+    </div>
+  </div>
+  <p class="muted" style="font-size: 15px">The plugin builds the strategic pattern into the workflow. Claude does the tedious part (reading code to work out how it fits together), and the engineer does the part that builds judgment (deciding what should change and defending it).</p>
+</section>
+
+<section id="flow">
+  <div class="section-head">
+    <span class="eyebrow">The workflow</span>
+    <h2>Same speed, different driver</h2>
+  </div>
+  <div class="flows">
+    <div class="flow">
+      <h3>Typical agent flow today</h3>
+      <ol class="steps">
+        <li><span class="who you">You</span>Ask for a feature</li>
+        <li><span class="who claude">Claude</span>Writes a long spec</li>
+        <li class="skim"><span class="who you">You</span>Skim and approve</li>
+        <li><span class="who claude">Claude</span>Implements</li>
+        <li class="skim"><span class="who you">You</span>Skim the PR, LGTM</li>
+        <li><span class="who repo">Ship</span>Deployed</li>
+      </ol>
+      <p class="flow-note">Dashed steps are where understanding is supposed to happen and usually doesn't. Claude made every design decision.</p>
+    </div>
+    <div class="flow">
+      <h3>With System Editor</h3>
+      <ol class="steps">
+        <li><span class="who you">You</span>Ask for a feature</li>
+        <li><span class="who claude">Claude</span>Maps the parts of the system it touches</li>
+        <li><span class="who you">You</span>Trace the paths on the map, with code beside each step</li>
+        <li class="decide"><span class="who you">You</span>Draw the change: add, remove or reroute</li>
+        <li><span class="who claude">Claude</span>Questions the change: intent, failure modes, data</li>
+        <li class="decide"><span class="who you">You</span>Answer and adjust</li>
+        <li><span class="who claude">Claude</span>Plans and implements only what you approved</li>
+        <li><span class="who you">You</span>Review a PR mapped to your diagram</li>
+      </ol>
+      <p class="flow-note">Outlined steps are your decisions. The map makes tracing fast, and nothing is built until you've drawn and defended the change.</p>
+    </div>
+  </div>
+</section>
+
+<section id="how">
+  <div class="section-head">
+    <span class="eyebrow">How it works</span>
+    <h2>One system model, passed between you and Claude</h2>
+  </div>
+  <p>Everything hangs off a single file: a structured model of the system, generated from code, where every box and arrow links to the lines it came from. You read it in the editor and change it there. Claude grills you on your changes, builds from them, and checks the finished code against them.</p>
+  <div class="diagram" role="img" aria-label="Architecture: the mapper skill reads source code and writes the system model through the plugin's MCP server. The editor in the browser reads and writes the model through the same server. Submitted changes go to the grill agent, then to the plan and implement step, which writes the decision record and PR. A verify step re-maps the code and compares it with the approved model.">
+    <svg viewBox="0 0 960 400" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="h" orient="auto" markerWidth="8" markerHeight="8" refX="7" refY="4"><path d="M0 0 L8 4 L0 8 Z" class="d-head"></path></marker>
+        <marker id="hok" orient="auto" markerWidth="8" markerHeight="8" refX="7" refY="4"><path d="M0 0 L8 4 L0 8 Z" class="d-head-ok"></path></marker>
+      </defs>
+      <rect class="d-lane" x="0" y="15" width="960" height="95" rx="8"></rect>
+      <rect class="d-lane" x="0" y="150" width="960" height="110" rx="8"></rect>
+      <rect class="d-lane" x="0" y="300" width="960" height="95" rx="8"></rect>
+      <text class="d-lane-label" x="14" y="40">BROWSER</text>
+      <text class="d-lane-label" x="14" y="175">CLAUDE CODE</text>
+      <text class="d-lane-label" x="14" y="325">REPOSITORY</text>
+
+      <line class="d-line" x1="215" y1="315" x2="215" y2="246" marker-end="url(#h)"></line>
+      <line class="d-line" x1="300" y1="205" x2="344" y2="205" marker-end="url(#h)"></line>
+      <line class="d-line" x1="420" y1="95" x2="420" y2="164" marker-end="url(#h)"></line>
+      <line class="d-line" x1="480" y1="170" x2="480" y2="101" marker-end="url(#h)"></line>
+      <line class="d-line" x1="420" y1="240" x2="420" y2="309" marker-end="url(#h)"></line>
+      <line class="d-line" x1="480" y1="315" x2="480" y2="246" marker-end="url(#h)"></line>
+      <line class="d-line" x1="550" y1="205" x2="594" y2="205" marker-end="url(#h)"></line>
+      <line class="d-line" x1="750" y1="205" x2="784" y2="205" marker-end="url(#h)"></line>
+      <line class="d-line" x1="870" y1="240" x2="870" y2="309" marker-end="url(#h)"></line>
+      <line class="d-line-dash" x1="790" y1="355" x2="556" y2="355" marker-end="url(#hok)"></line>
+      <text class="d-label-ok" x="600" y="385">verify: re-map, diff vs approved</text>
+      <text class="d-label" x="428" y="135">read</text>
+      <text class="d-label" x="488" y="135">edits</text>
+
+      <rect class="d-box-you" x="350" y="35" width="200" height="60" rx="8"></rect>
+      <text class="d-title" x="366" y="60">Editor</text>
+      <text class="d-sub" x="366" y="80">Trace · Edit · Grill</text>
+
+      <rect class="d-box-claude" x="130" y="170" width="170" height="70" rx="8"></rect>
+      <text class="d-title" x="146" y="198">Mapper</text>
+      <text class="d-sub" x="146" y="218">skill + subagents + LSP</text>
+
+      <rect class="d-box-claude" x="350" y="170" width="200" height="70" rx="8"></rect>
+      <text class="d-title" x="366" y="198">sysedit MCP server</text>
+      <text class="d-sub" x="366" y="218">serves model + editor</text>
+
+      <rect class="d-box-claude" x="600" y="170" width="150" height="70" rx="8"></rect>
+      <text class="d-title" x="616" y="198">Grill agent</text>
+      <text class="d-sub" x="616" y="218">red-team rubric</text>
+
+      <rect class="d-box-claude" x="790" y="170" width="160" height="70" rx="8"></rect>
+      <text class="d-title" x="806" y="198">Plan + implement</text>
+      <text class="d-sub" x="806" y="218">behind the gate</text>
+
+      <rect class="d-box-repo" x="130" y="315" width="170" height="60" rx="8"></rect>
+      <text class="d-title" x="146" y="340">Source code</text>
+      <text class="d-sub" x="146" y="360">+ git history</text>
+
+      <rect class="d-box-repo" x="350" y="315" width="200" height="60" rx="8"></rect>
+      <text class="d-title" x="366" y="340">.sysedit/</text>
+      <text class="d-sub" x="366" y="360">model.json · changes/</text>
+
+      <rect class="d-box-repo" x="790" y="315" width="160" height="60" rx="8"></rect>
+      <text class="d-title" x="806" y="340">ADR + PR</text>
+      <text class="d-sub" x="806" y="360">mapped to the diagram</text>
+    </svg>
+  </div>
+  <div class="legend">
+    <span class="who you">You use it</span>
+    <span class="who claude">Claude runs it</span>
+    <span class="who repo">Lives in the repo</span>
+  </div>
+
+  <div class="twoup">
+    <div class="codecard">
+      <span class="cap"><b>The system model.</b> Each edge carries its evidence and says whether Claude read it from code or inferred it.</span>
+<pre>{
+  "commit": "a1f9c2e",
+  "nodes": [{
+    "id": "checkout.placeOrder",
+    "kind": "function",
+    "source": { "file": "src/checkout/service.ts",
+                "lines": [52, 70] }
+  }],
+  "edges": [{
+    "from": "checkout.placeOrder",
+    "to": "payments.capture",
+    "kind": "call",
+    "evidence": { "file": "src/checkout/service.ts",
+                  "line": 59 },
+    "confidence": "read"
+  }, {
+    "from": "bus.order.placed",
+    "to": "email.sendReceipt",
+    "kind": "event",
+    "confidence": "inferred"
+  }],
+  "flows": [{ "entry": "POST /checkout",
+              "steps": ["…"] }]
+}</pre>
+    </div>
+    <div class="codecard">
+      <span class="cap"><b>The change set.</b> What you drew, as operations against the model. This is the contract Claude builds and verifies against.</span>
+<pre>{
+  "base": "a1f9c2e",
+  "intent": "Score every order before we charge it.",
+  "ops": [
+    { "op": "addNode", "id": "fraud.score",
+      "kind": "function",
+      "file": "src/fraud/service.ts" },
+    { "op": "addEdge",
+      "from": "checkout.placeOrder",
+      "to": "fraud.score" },
+    { "op": "addBranch", "from": "fraud.score",
+      "when": "score >= 0.8",
+      "to": "orderHold.create" },
+    { "op": "removeEdge",
+      "from": "checkout.placeOrder",
+      "to": "payments.capture" }
+  ],
+  "questions": [{ "id": "q2",
+    "severity": "blocking",
+    "status": "open" }],
+  "status": "in-review"
+}</pre>
+    </div>
+  </div>
+</section>
+
+<section id="build">
+  <div class="section-head">
+    <span class="eyebrow">What we build</span>
+    <h2>The plugin, piece by piece</h2>
+  </div>
+  <p>A Claude Code plugin bundles skills, subagents, hooks, MCP servers and a hooks module. A plugin with a hooks module is called a mod, and it can draw panes in the terminal and step into tool calls. Everything below ships as one plugin, <code>sysedit</code>.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Piece</th><th>Kind</th><th>What it does</th><th>Phase</th></tr></thead>
+      <tbody>
+        <tr><td class="name">/sysedit:map</td><td><span class="kind">Skill</span></td><td>Reads the request, finds the entry points it touches, and writes <code>.sysedit/model.json</code> at three detail levels (services, modules, functions).</td><td class="ph">0–1</td></tr>
+        <tr><td class="name">mapper</td><td><span class="kind">Subagent</span> <span class="kind">Workflow</span></td><td>One mapper per entry point, run in parallel by a plugin workflow script. Each traces calls with the language server and records file and line evidence for every edge.</td><td class="ph">0–1</td></tr>
+        <tr><td class="name">.lsp.json</td><td><span class="kind">LSP</span></td><td>Go-to-definition and find-references, so edges come from the language server rather than text search. Reuse the official code intelligence plugins where they exist.</td><td class="ph">0</td></tr>
+        <tr><td class="name">sysedit server</td><td><span class="kind">MCP server</span></td><td>Serves the editor on localhost and gives Claude tools: <code>open_editor</code>, <code>get_model</code>, <code>get_change_set</code>, <code>record_answer</code>.</td><td class="ph">1</td></tr>
+        <tr><td class="name">editor</td><td><span class="kind">Web app</span></td><td>React Flow canvas with Trace (step through a path, code beside it), Edit (add, remove, reroute) and Grill (answer questions) modes.</td><td class="ph">1–3</td></tr>
+        <tr><td class="name">/sysedit:grill</td><td><span class="kind">Skill</span> <span class="kind">Subagent</span></td><td>Runs on submit. A red-team subagent works through a rubric (intent mismatches, failure modes, timeouts, consistency, idempotency, events, security) and tags each question blocking or worth checking, with the code that prompted it.</td><td class="ph">3</td></tr>
+        <tr><td class="name">gate</td><td><span class="kind">Mod hook</span></td><td>Holds <code>Edit</code> and <code>Write</code> outside <code>.sysedit/</code> until the change set is approved with no open blocking questions. Can start as a <code>PreToolUse</code> settings hook script.</td><td class="ph">3</td></tr>
+        <tr><td class="name">/sysedit:plan</td><td><span class="kind">Skill</span></td><td>Turns the approved change set and answers into an implementation plan, one task per operation, and refuses work that isn't on the map.</td><td class="ph">4</td></tr>
+        <tr><td class="name">/sysedit:verify</td><td><span class="kind">Skill</span></td><td>Re-maps the changed code and diffs it against the approved model. Reports drift: edges you drew that don't exist, and edges that appeared that you didn't draw.</td><td class="ph">4</td></tr>
+        <tr><td class="name">decision record</td><td><span class="kind">Skill</span></td><td>Writes <code>docs/adr/NNNN-*.md</code> from your intent, diagram diff and answers, and a PR description that maps each file changed to a box on the diagram.</td><td class="ph">4</td></tr>
+        <tr><td class="name">status pane</td><td><span class="kind">Mod pane</span></td><td>A pane in the terminal and the desktop Code tab: current stage, open questions, a button to open the editor. A band above the prompt shows what's blocking.</td><td class="ph">2</td></tr>
+        <tr><td class="name">/sysedit:skip</td><td><span class="kind">Skill</span></td><td>Bypasses the process for small changes, logs the reason, and lets the gate through. Keeps the ceremony for changes that need it.</td><td class="ph">5</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="editor">
+  <div class="section-head">
+    <span class="eyebrow">Where the editor lives</span>
+    <h2>Start in the browser, add native surfaces later</h2>
+  </div>
+  <p>Mod panes only draw in the terminal and the desktop app's Code tab, and their elements are text, buttons and fields. A canvas you drag boxes around on needs a real web view, so the editor starts as a local web app and the mod handles status.</p>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Option</th><th>Good at</th><th>Limits</th><th>Use for</th></tr></thead>
+      <tbody>
+        <tr><td><b>Local web app</b><br><span class="muted">served by the MCP server</span></td><td>Full canvas, any library, works with every Claude Code surface</td><td>Separate browser tab, so you switch windows</td><td class="rec">The editor, from phase 1</td></tr>
+        <tr><td><b>Mod pane</b><br><span class="muted">hooks module</span></td><td>Lives beside the transcript; can hold a tool call and ask a question</td><td>Text, buttons, fields; the <code>Svg</code> element is desktop only; nothing draws in VS Code or cloud sessions</td><td class="rec">Status, gate prompts, quick answers</td></tr>
+        <tr><td><b>MCP App</b><br><span class="muted">UI returned by a tool</span></td><td>Interactive HTML inline in Claude chat; the model sees what the user does in it</td><td>Renders in hosts that support MCP Apps, not the terminal</td><td>Phase 5, for teams working in Claude desktop or web</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="principles">
+  <div class="section-head">
+    <span class="eyebrow">What makes it work</span>
+    <h2>Five rules the build has to hold to</h2>
+  </div>
+  <div class="principles">
+    <div class="principle"><h3>Every box has a source</h3><p>No node or edge without a file and line behind it. Clicking anything opens the code. If engineers can't check the map, they won't trust it.</p></div>
+    <div class="principle"><h3>Say what was guessed</h3><p>Dynamic dispatch, config routing and event buses get marked inferred, drawn differently, and offered as things to check rather than facts.</p></div>
+    <div class="principle"><h3>The diagram is the contract</h3><p>Claude builds only what's on the approved map and verifies the result against it. Drift is reported, never silently accepted.</p></div>
+    <div class="principle"><h3>Questions earn their place</h3><p>Every grill question cites the code that prompted it. A question you can't trace to evidence gets dropped. Blocking questions are rare and real.</p></div>
+    <div class="principle"><h3>Ceremony scales with risk</h3><p>A typo fix skips the process. A change to a core flow gets all of it. Too much friction on small work gets the plugin turned off.</p></div>
+  </div>
+</section>
+
+<section id="roadmap">
+  <div class="section-head">
+    <span class="eyebrow">Roadmap</span>
+    <h2>Six phases, each one usable on its own</h2>
+  </div>
+  <p class="muted" style="font-size: 15px">Sizes are rough estimates for one engineer. Each phase ends with something a team can use, so you can stop or change direction at any point.</p>
+  <ol class="roadmap">
+    <li class="phase">
+      <div class="phase-mark"><span class="pn">0</span><span class="size">~1–2 weeks</span></div>
+      <div class="phase-body">
+        <h3>Prove the map is right</h3>
+        <p>Everything depends on map accuracy, so test it before building any UI.</p>
+        <div class="phase-cols">
+          <div><h4>Build</h4><ul><li>Model JSON schema</li><li><code>/sysedit:map</code> skill and mapper subagent</li><li>LSP setup for one language</li><li>Render the model as Mermaid for checking</li></ul></div>
+          <div><h4>Test on</h4><ul><li>2–3 real repos the team knows well</li><li>5 entry points each</li><li>Engineers mark each edge right, wrong or missing</li></ul></div>
+        </div>
+        <div class="exit"><b>Exit when</b> engineers who know the code agree the maps are accurate enough to trace from, and inferred edges are flagged rather than hidden.</div>
+      </div>
+    </li>
+    <li class="phase">
+      <div class="phase-mark"><span class="pn">1</span><span class="size">~2–3 weeks</span></div>
+      <div class="phase-body">
+        <h3>Trace mode</h3>
+        <p>A read-only editor that's useful on day one: onboarding, debugging, code review.</p>
+        <div class="phase-cols">
+          <div><h4>Build</h4><ul><li>MCP server serving the editor locally</li><li>Canvas with entry-point picker and three detail levels</li><li>Step-through with code beside each step</li><li>Incremental re-map from <code>git diff</code></li></ul></div>
+          <div><h4>Ship as</h4><ul><li>Plugin loaded with <code>--plugin-dir</code></li><li>Internal team marketplace</li></ul></div>
+        </div>
+        <div class="exit"><b>Exit when</b> engineers reach for it unprompted to understand unfamiliar code, and say tracing is faster than reading.</div>
+      </div>
+    </li>
+    <li class="phase">
+      <div class="phase-mark"><span class="pn">2</span><span class="size">~2 weeks</span></div>
+      <div class="phase-body">
+        <h3>Edit mode and change sets</h3>
+        <p>Engineers draw the change, and the editor records it as operations.</p>
+        <div class="phase-cols">
+          <div><h4>Build</h4><ul><li>Add, remove and reroute tools, plus branches</li><li>Change-set file and intent note</li><li>Inspector for new nodes</li><li>Mod status pane and band above the prompt</li></ul></div>
+          <div><h4>Watch for</h4><ul><li>Changes the canvas can't express</li><li>How long drawing takes compared with typing a prompt</li></ul></div>
+        </div>
+        <div class="exit"><b>Exit when</b> real feature requests can be expressed as change sets without falling back to prose.</div>
+      </div>
+    </li>
+    <li class="phase">
+      <div class="phase-mark"><span class="pn">3</span><span class="size">~2–3 weeks</span></div>
+      <div class="phase-body">
+        <h3>The grill and the gate</h3>
+        <p>Claude questions the change, and nothing gets written until the blocking questions are answered.</p>
+        <div class="phase-cols">
+          <div><h4>Build</h4><ul><li>Red-team rubric skill and subagent</li><li>Evidence attached to every question</li><li>Answers that update the change set</li><li>Gate hook on <code>Edit</code> and <code>Write</code></li></ul></div>
+          <div><h4>Tune</h4><ul><li>Rate each question useful or noise</li><li>Cut rubric items that mostly produce noise</li></ul></div>
+        </div>
+        <div class="exit"><b>Exit when</b> engineers rate most blocking questions as catching something real, and the gate rarely gets bypassed.</div>
+      </div>
+    </li>
+    <li class="phase">
+      <div class="phase-mark"><span class="pn">4</span><span class="size">~2 weeks</span></div>
+      <div class="phase-body">
+        <h3>Plan, build, verify</h3>
+        <p>Close the loop from approved diagram to merged code.</p>
+        <div class="phase-cols">
+          <div><h4>Build</h4><ul><li><code>/sysedit:plan</code> constrained to the change set</li><li><code>/sysedit:verify</code> drift check</li><li>Decision record and diagram-mapped PR description</li></ul></div>
+          <div><h4>Then</h4><ul><li>Run verify in CI on PRs that carry a change set</li></ul></div>
+        </div>
+        <div class="exit"><b>Exit when</b> reviewers say the mapped PR is faster to review than a plain diff, and drift is caught before merge.</div>
+      </div>
+    </li>
+    <li class="phase">
+      <div class="phase-mark"><span class="pn">5</span><span class="size">ongoing</span></div>
+      <div class="phase-body">
+        <h3>Team rollout</h3>
+        <p>Make it the default path for changes that matter, and cheap to skip for those that don't.</p>
+        <div class="phase-cols">
+          <div><h4>Build</h4><ul><li>Risk tiers and <code>/sysedit:skip</code></li><li>More languages</li><li>MCP App version of the editor</li><li>Shared, versioned maps for the whole repo</li></ul></div>
+          <div><h4>Distribute</h4><ul><li>Project-scope install via <code>.claude/settings.json</code></li><li>Plugin evals in CI</li></ul></div>
+        </div>
+        <div class="exit"><b>Exit when</b> the metrics below hold up across several teams over a quarter.</div>
+      </div>
+    </li>
+  </ol>
+</section>
+
+<section id="measure">
+  <div class="section-head">
+    <span class="eyebrow">Measuring it</span>
+    <h2>How we'll know it's working</h2>
+  </div>
+  <p>The claim has two halves: it keeps engineers' understanding intact, and it doesn't slow them down. Measure both, so the plugin can be judged on more than how it feels.</p>
+  <div class="metrics">
+    <div class="metric"><b>Map accuracy</b><span>Share of sampled edges engineers confirm as correct. Tracked per language and per repo.</span></div>
+    <div class="metric"><b>Time to first edit</b><span>From request to submitted change set, compared with writing a prompt and reading the spec.</span></div>
+    <div class="metric"><b>Grill hit rate</b><span>Blocking questions that led to a changed decision, divided by all blocking questions asked.</span></div>
+    <div class="metric"><b>Drift caught</b><span>Differences between approved and built model found before merge.</span></div>
+    <div class="metric"><b>Post-merge defects</b><span>Bugs and rework on changes that went through the process, compared with ones that skipped it.</span></div>
+    <div class="metric"><b>Explain-back</b><span>Occasionally, an engineer explains the flow they changed without the tool. A direct check on the original goal.</span></div>
+  </div>
+
+  <div class="section-head" style="margin-top: 24px"><h3>Risks and how we handle them</h3></div>
+  <ul class="risks">
+    <li><span class="r">The map is wrong and engineers trace it with confidence</span><span class="m">Evidence on every edge, inferred edges marked, and phase 0 accuracy checks before any UI.</span></li>
+    <li><span class="r">The diagram becomes the new thing people skim</span><span class="m">The engineer has to make the change on the map, so they must find where it fits. The grill asks about their specific decisions.</span></li>
+    <li><span class="r">Too much ceremony, so people turn it off</span><span class="m">Risk tiers and a logged skip. Measure the skip rate and treat a high one as a design problem.</span></li>
+    <li><span class="r">Mapping costs too many tokens on large repos</span><span class="m">Map only the entry points the request touches, cache by commit, and re-map incrementally from the diff.</span></li>
+    <li><span class="r">Some changes don't fit boxes and arrows</span><span class="m">Allow a prose note on any node or edge. Track what couldn't be drawn and extend the operations to cover it.</span></li>
+  </ul>
+</section>
+
+<footer class="sources">
+  <span class="eyebrow">Sources</span>
+  <ul>
+    <li><a href="https://www.anthropic.com/research/AI-assistance-coding-skills">Anthropic: How AI assistance impacts the formation of coding skills</a></li>
+    <li><a href="https://infoq.com/news/2026/02/ai-coding-skill-formation/">InfoQ: AI coding assistance reduces developer skill mastery by 17%</a></li>
+    <li><a href="https://www.ncbi.nlm.nih.gov/pmc/articles/PMC13413235/">Journal of Intelligence: strategic versus habitual cognitive offloading</a></li>
+    <li><a href="https://the-decoder.com/?p=21395">The Decoder: Microsoft study on knowledge workers becoming AI output verifiers</a></li>
+    <li><a href="https://code.claude.com/docs/en/plugins">Claude Code: Plugins overview</a> and <a href="https://code.claude.com/docs/en/plugins/components">plugin components</a></li>
+    <li><a href="https://code.claude.com/docs/en/plugins/mods/overview">Claude Code: Mods overview</a> and <a href="https://code.claude.com/docs/en/plugins/mods/interface">drawing in the interface</a></li>
+    <li><a href="https://github.com/halllo/mcp-ext-apps">MCP Apps SDK and examples</a></li>
+  </ul>
+</footer>
+
+</div>
+
+</body></html>

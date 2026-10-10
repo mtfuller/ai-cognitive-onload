@@ -1,0 +1,38 @@
+# API gateway routes for orders-api.
+#
+# Every route below is forwarded to the orders-api upstream. The gateway
+# enforces the timeout: a handler that hasn't answered by then gets a 504,
+# and the client sees the request fail even if the work later completes.
+#
+# Auth:
+#   session  - a signed session cookie, resolved to a user by the gateway
+#   stripe   - a Stripe webhook signature
+#   internal - mTLS from inside the cluster
+#
+# Change these with care: the timeouts are part of the API contract.
+
+defaults:
+  upstream: orders-api
+  retries: 0
+
+routes:
+- path: /checkout
+  method: POST
+  upstream: orders-api
+  handler: OrderController.create
+  timeout: 3s
+  auth: session
+
+- path: /orders/:id
+  method: GET
+  upstream: orders-api
+  handler: OrderController.get
+  timeout: 2s
+  auth: session
+
+- path: /webhooks/stripe
+  method: POST
+  upstream: orders-api
+  handler: StripeWebhookController.handle
+  timeout: 10s
+  auth: stripe

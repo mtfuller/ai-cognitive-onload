@@ -1,0 +1,48 @@
+{
+  "updatedAt": "2026-10-09T21:24:56.529Z",
+  "claudeVersion": "2.1.296",
+  "runsPerArm": 3,
+  "judgeModel": "sonnet",
+  "cases": {
+    "explain-back-scores-gaps": {
+      "score": 1,
+      "delta": 0.571
+    },
+    "gate-holds-code-until-approved": {
+      "score": 1,
+      "delta": 1
+    },
+    "grill-asks-with-evidence": {
+      "score": 0.949,
+      "delta": 0.641
+    },
+    "grill-records-engineer-answers": {
+      "score": 1,
+      "delta": 0.6
+    },
+    "low-risk-no-ceremony": {
+      "score": 1,
+      "delta": 0
+    },
+    "map-hands-design-to-engineer": {
+      "score": 1,
+      "delta": 1
+    },
+    "plan-builds-only-the-map": {
+      "score": 1,
+      "delta": 0.308
+    },
+    "refuses-to-answer-for-engineer": {
+      "score": 1,
+      "delta": 0.5
+    },
+    "trace-predict-then-reveal": {
+      "score": 1,
+      "delta": 0.6
+    },
+    "verify-catches-drift": {
+      "score": 1,
+      "delta": 0.444
+    }
+  }
+}

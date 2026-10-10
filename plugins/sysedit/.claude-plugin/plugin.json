@@ -1,0 +1,21 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "sysedit",
+  "displayName": "System Editor",
+  "version": "0.1.0",
+  "description": "Design the change on a live map of your system. Claude maps the code, questions your decisions with evidence, and builds only what you drew and defended.",
+  "author": { "name": "mtfuller" },
+  "repository": "https://github.com/mtfuller/ai-cognitive-onload",
+  "license": "MIT",
+  "keywords": ["design", "architecture", "code-review", "cognitive-offloading", "learning", "mod"],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "gate_mode": {
+      "type": "string",
+      "title": "Gate mode",
+      "description": "approved-only holds writes outside .sysedit/ until the change is approved; strict also holds writes to files that aren't on the approved map; off turns the gate off.",
+      "default": "approved-only",
+      "options": ["approved-only", "strict", "off"]
+    }
+  }
+}

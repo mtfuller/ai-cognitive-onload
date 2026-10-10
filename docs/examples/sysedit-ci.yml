@@ -1,0 +1,17 @@
+# Add to a repository that uses System Editor: fail a PR that carries a change
+# set which was never verified against its map (or skipped with a reason).
+name: System Editor
+
+on: pull_request
+
+jobs:
+  sysedit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # The plugin's CLI is one bundled file with no dependencies.
+      - run: curl -fsSL -o sysedit.mjs https://raw.githubusercontent.com/mtfuller/ai-cognitive-onload/main/plugins/sysedit/dist/sysedit.mjs
+      - run: node sysedit.mjs ci

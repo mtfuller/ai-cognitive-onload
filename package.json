@@ -1,0 +1,36 @@
+{
+  "name": "ai-cognitive-onload",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Claude Code plugins that keep the engineer's brain in the driver's seat: System Editor (sysedit) and its test and eval harness.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:check": "node scripts/build.mjs --check",
+    "typecheck": "tsc -p tsconfig.json && tsc -p src/editor/tsconfig.json",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:e2e": "playwright test",
+    "test:mod": "claude plugin test plugins/sysedit",
+    "validate": "claude plugin validate plugins/sysedit --strict && claude plugin validate . --strict",
+    "evals:gen": "node scripts/gen-eval-scaffolds.mjs",
+    "evals": "bash scripts/run-evals.sh",
+    "evals:smoke": "bash scripts/run-evals.sh --tag smoke --runs 1",
+    "ci": "npm run build:check && npm run typecheck && npm test && npm run test:e2e && npm run validate && npm run test:mod",
+    "evals:compare": "node scripts/eval-compare.mjs",
+    "fixture:model": "node scripts/gen-fixture-model.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "@types/node": "^22.10.0",
+    "esbuild": "0.28.2",
+    "preact": "10.27.2",
+    "typescript": "5.9.3",
+    "vitest": "3.2.4"
+  }
+}

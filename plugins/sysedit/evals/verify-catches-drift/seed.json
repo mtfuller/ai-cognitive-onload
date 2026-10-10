@@ -1,0 +1,11 @@
+{
+  "model": true,
+  "change": {
+    "status": "implemented",
+    "ops": "fraud",
+    "intent": true,
+    "questions": "answered",
+    "plan": true
+  },
+  "implement": "forget-hold"
+}
