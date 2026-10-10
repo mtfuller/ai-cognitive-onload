@@ -155,10 +155,10 @@ export function Trace({ model, focus }: { model: SystemModel; focus?: string | n
             Step {cur + 1} of {steps.length}
           </span>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button type="button" class="btn" aria-label="Previous step" disabled={cur === 0} onClick={() => setStep(cur - 1)}>
+            <button type="button" class="btn" aria-label="Previous step" disabled={cur === 0} onClick={() => setStep(s => Math.max(0, Math.min(last, s) - 1))}>
               ‹
             </button>
-            <button type="button" class="btn primary" disabled={cur === last} onClick={() => setStep(cur + 1)}>
+            <button type="button" class="btn primary" disabled={cur === last} onClick={() => setStep(s => Math.min(last, Math.min(last, s) + 1))}>
               Next step ›
             </button>
           </div>

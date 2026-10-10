@@ -34,8 +34,9 @@
   --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   color-scheme: light;
 }
+/* Dark: the OS preference in a browser tab; the chat host's theme when it sets one. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --paper: #151513;
     --canvas: #1b1b19;
     --surface: #20201d;
@@ -64,6 +65,34 @@
     color-scheme: dark;
   }
 }
+:root[data-theme='dark'] {
+    --paper: #151513;
+    --canvas: #1b1b19;
+    --surface: #20201d;
+    --ink: #edebe4;
+    --ink-2: #d6d3ca;
+    --muted: #a8a59c;
+    --rule: #3a3934;
+    --box-rule: #45433d;
+    --arrow: #7d796f;
+    --blue: #8fb0f5;
+    --blue-dark: #b9cdf8;
+    --blue-bg: #1f2a44;
+    --blue-soft: #5d78b3;
+    --blue-visited: #1c2333;
+    --amber: #e3a64a;
+    --amber-ink: #f3d6a6;
+    --amber-bg: #33280f;
+    --amber-rule: #6b5222;
+    --green: #6fcf9b;
+    --green-bg: #17301f;
+    --green-ink: #a6e3c0;
+    --red: #f2958c;
+    --red-bg: #3a1a17;
+    --red-ink: #f6bbb5;
+    --code-bg: #0e0e0d;
+    color-scheme: dark;
+  }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--paper); color: var(--ink); font: 14px/20px var(--font); }
@@ -196,3 +225,21 @@ ul.checked { margin: 0; padding-left: 18px; font-size: 13px; display: flex; flex
 .drift-ok { color: var(--green); font-weight: 600; }
 .drift-bad { color: var(--red); font-weight: 600; }
 .empty { padding: 48px 24px; text-align: center; color: var(--muted); display: flex; flex-direction: column; gap: 8px; align-items: center; }
+
+/* Narrow: a chat column or a small window. The map first, then its detail, then the controls. */
+@media (max-width: 960px) {
+  .body { min-height: 0; }
+  .left, .right { flex-basis: 100%; max-width: none; border: 0; border-top: 1px solid var(--rule); }
+  .main { order: 1; padding: 16px; }
+  .right { order: 2; }
+  .left { order: 3; }
+  .request { display: none; }
+}
+
+/* In a chat host the iframe is sized from the content, so nothing may size itself from the viewport. */
+body.in-chat { background: var(--paper); }
+body.in-chat .body { min-height: 0; }
+html.fixed-height body.in-chat .body { min-height: calc(100vh - 60px); }
+body.in-chat .top { padding: 6px 16px; gap: 8px 16px; }
+body.in-chat .stages button { min-height: 36px; padding: 0 10px; }
+.expand { margin-left: auto; background: transparent; color: var(--header-fg); border-color: #5f5d57; }

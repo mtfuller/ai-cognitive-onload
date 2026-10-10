@@ -5,7 +5,8 @@
 import { render } from 'preact'
 import { useCallback, useEffect, useState } from 'preact/hooks'
 
-import { api, type AppState } from './api.ts'
+import { describeOp } from '../../plugins/sysedit/core/changeset.ts'
+import { api, inChat, type AppState } from './api.ts'
 import { Edit } from './Edit.tsx'
 import { Grill } from './Grill.tsx'
 import { Plan } from './Plan.tsx'
@@ -45,6 +46,20 @@ function App() {
   }, [])
 
   useEffect(() => {
+    // In a chat, show_editor's arguments pick the screen.
+    api.chat?.input.then(input => {
+      if (input.tab && ['trace', 'edit', 'grill', 'plan'].includes(input.tab)) setTab(input.tab as Tab)
+      if (input.focus) setFocus(input.focus)
+    })
+  }, [])
+
+  // Keep Claude's picture of the editor current, without starting a turn.
+  const summary = state ? contextSummary(state) : ''
+  useEffect(() => {
+    if (summary) void api.chat?.context(summary)
+  }, [summary])
+
+  useEffect(() => {
     refresh()
     const off = api.subscribe(refresh)
     // Belt and braces: a watcher can miss writes on some file systems.
@@ -63,6 +78,7 @@ function App() {
   const open = view?.change.questions.filter(q => q.severity === 'blocking' && q.status === 'open').length ?? 0
   const go = (t: Tab) => {
     setTab(t)
+    if (inChat) return
     const u = new URL(location.href)
     u.searchParams.set('tab', t)
     history.replaceState(null, '', u)
@@ -86,7 +102,17 @@ function App() {
   } else if (current === 'trace' || !view) {
     screen = <Trace model={state.model} focus={focus} />
   } else if (current === 'edit') {
-    screen = <Edit model={state.model} view={view} onSubmitted={() => { refresh(); go('grill') }} />
+    screen = (
+      <Edit
+        model={state.model}
+        view={view}
+        onSubmitted={() => {
+          refresh()
+          go('grill')
+          void api.chat?.say("I've drawn my change in the System Editor and submitted it for review. Please review it.")
+        }}
+      />
+    )
   } else if (current === 'grill') {
     screen = (
       <Grill
@@ -94,7 +120,11 @@ function App() {
         view={view}
         onBack={() => go('edit')}
         onTrace={target => { setFocus(target); go('trace') }}
-        onApproved={() => { refresh(); go('plan') }}
+        onApproved={() => {
+          refresh()
+          go('plan')
+          void api.chat?.say("I've answered the review and approved the change in the System Editor. Plan it and build it.")
+        }}
       />
     )
   } else {
@@ -124,6 +154,7 @@ function App() {
             </button>
           ))}
         </nav>
+        {api.chat && api.chat.host.canFullscreen() && <DisplayToggle />}
         {view && (
           <div class="request">
             <span>Request</span>
@@ -135,6 +166,35 @@ function App() {
       {screen}
     </>
   )
+}
+
+/** Inline in the conversation the map is cramped; let the engineer take the whole window. */
+function DisplayToggle() {
+  const host = api.chat!.host
+  const [mode, setMode] = useState(host.context.displayMode ?? 'inline')
+  const flip = async () => setMode((await host.setDisplayMode(mode === 'fullscreen' ? 'inline' : 'fullscreen')) ?? mode)
+  return (
+    <button type="button" class="btn small expand" onClick={flip}>
+      {mode === 'fullscreen' ? 'Back to chat' : 'Expand'}
+    </button>
+  )
+}
+
+/** What Claude should know about the editor right now, in a few lines. */
+function contextSummary(state: AppState): string {
+  const cs = state.change?.change
+  if (!cs) return `System Editor: ${state.status.stageLabel}.`
+  const labels = new Map(state.change!.proposed.nodes.map(n => [n.id, n.label]))
+  const lines = [
+    `System Editor: change ${cs.id} "${cs.title}" is ${cs.status} (${state.status.stageLabel}).`,
+    `Intent: ${cs.intent || '(not written yet)'}`,
+    `Drawn by the engineer: ${cs.ops.map(o => describeOp(o, labels).text + (o.by === 'claude' ? ' [your suggestion, not accepted]' : '')).join('; ') || 'nothing yet'}`,
+  ]
+  const answered = cs.questions.filter(q => q.status === 'answered')
+  if (answered.length) lines.push(`Answers: ${answered.map(q => `${q.id}: ${q.options?.find(o => o.id === q.answer?.optionId)?.label ?? q.answer?.text}`).join('; ')}`)
+  const open = cs.questions.filter(q => q.severity === 'blocking' && q.status === 'open')
+  if (open.length) lines.push(`Waiting on the engineer: ${open.length} blocking question(s).`)
+  return lines.join('\n')
 }
 
 render(<App />, document.getElementById('app')!)

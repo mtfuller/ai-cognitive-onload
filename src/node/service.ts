@@ -99,6 +99,19 @@ export class Sysedit extends EventEmitter {
     }
   }
 
+  /** Everything an editor needs to draw: status, the model, and the active change with its proposed model. */
+  editorState() {
+    const status = this.status()
+    const model = this.store.readModel()
+    let change: ReturnType<Sysedit['getChange']> | null = null
+    try {
+      change = status.change ? this.getChange() : null
+    } catch {
+      change = null
+    }
+    return { status, model, change }
+  }
+
   // --- the model -----------------------------------------------------------
 
   saveModel(model: SystemModel, opts: { merge?: boolean } = {}): { report: ValidationReport; stats: ReturnType<typeof modelStats> } {

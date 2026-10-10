@@ -102,6 +102,19 @@ It polls `.sysedit/` every two seconds so the band follows what the engineer doe
 - serves source lines only for paths that resolve, through symlinks, inside the repository;
 - pushes `changed` events (server-sent events) when anything under `.sysedit/` changes, so Claude's questions appear while the page is open.
 
+## The editor in chat (MCP App)
+
+In hosts that render [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps) (Claude desktop chat), the same editor runs inside the conversation. This is part of the MCP server, not the mod: mods draw in Claude Code, which doesn't render MCP Apps.
+
+- **Only for hosts that say so.** The server checks the client's `initialize` for the `io.modelcontextprotocol/ui` extension with `text/html;profile=mcp-app`. Other clients, Claude Code included, see none of what follows: no resource, no `show_editor`, no `app_*` tools, and calls to them are unknown tools.
+- **One self-contained page.** `resources/read` on `ui://sysedit/editor` returns the editor bundle (`dist/editor/app.js` and `app.css`) inlined into one HTML document, with an empty CSP: the page makes no network requests.
+- **`show_editor`** (visible to the model and the app) carries `_meta.ui.resourceUri`, so the host renders the page with the tool's input (`tab`, `focus`) and result (the editor state).
+- **`app_*` tools** (visibility `["app"]`, hidden from the model) are the page's API, the same operations as the localhost HTTP API: read state and source lines (confined to the repository), save the engineer's operations and intent, accept or remove a suggestion, submit, answer, rate, dismiss, approve. The host proxies them from the page's `tools/call`. Everything the page saves is the engineer's, as in the browser editor.
+- **Back to the conversation.** Submitting sends a `ui/message` asking Claude to review; approving sends one asking it to plan and build. While the engineer works, the page keeps `ui/update-model-context` current with what they've drawn and answered, so Claude knows without a new turn.
+- **Fits the chat.** The page follows the host's theme, stacks its three columns at chat width, reports its height (`ui/notifications/size-changed`), and offers fullscreen when the host allows it. It polls state every 2.5 seconds, so questions Claude asks appear without a reload.
+
+`src/editor/apphost.ts` is the page's side of the protocol (postMessage JSON-RPC, `ui/initialize`); `src/editor/api.ts` picks the transport, HTTP or MCP App, and the four screens don't know which they're on.
+
 ## Mapping
 
 The `mapper` subagent maps one entry point: it follows calls with `LSP` where a language server is configured, else `Grep` plus reading each call site, and returns a model slice. `map` dispatches one per entry point in parallel and merges them with `save_model(merge: true)`; the server validates the result against the files on disk and refuses it with the errors to fix. Models are cached by commit under `.sysedit/cache/`; a stale model is re-mapped from `git diff --name-only <model commit>`.

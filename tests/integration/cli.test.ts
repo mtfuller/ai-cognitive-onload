@@ -100,6 +100,14 @@ describe('sysedit ci', () => {
     expect(run(['ci']).code).toBe(0)
   })
 
+  it('prints a Claude desktop config entry that starts this bundle for this repository', () => {
+    const r = run(['desktop-config'])
+    expect(r.code).toBe(0)
+    expect(JSON.parse(r.out)).toEqual({
+      mcpServers: { sysedit: { command: process.execPath, args: [CLI, 'mcp'], env: { SYSEDIT_ROOT: repo.dir } } },
+    })
+  })
+
   it('prints help and rejects unknown commands', () => {
     expect(run(['help']).out).toMatch(/Usage: sysedit <command>/)
     expect(run(['frobnicate']).code).toBe(2)

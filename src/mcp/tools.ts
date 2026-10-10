@@ -11,12 +11,20 @@ import { formatReport } from '../../plugins/sysedit/core/validate.ts'
 import type { EditorServer } from '../http/server.ts'
 import { Sysedit } from '../node/service.ts'
 
-export type ToolResult = { text: string; data?: unknown; isError?: boolean }
+export type ToolResult = {
+  text: string
+  data?: unknown
+  isError?: boolean
+  /** Sent as `structuredContent`, for an MCP App view to render. Not read by the model. */
+  structured?: Record<string, unknown>
+}
 
 export type ToolDef = {
   name: string
   description: string
   inputSchema: Record<string, unknown>
+  /** MCP Apps metadata (`_meta.ui`): the view the tool renders, and who may call it. */
+  ui?: { resourceUri: string; visibility?: ('model' | 'app')[] }
   run: (args: any, ctx: ToolContext) => Promise<ToolResult> | ToolResult
 }
 
@@ -25,7 +33,7 @@ export type ToolContext = {
   openEditor: () => Promise<EditorServer>
 }
 
-const obj = (properties: Record<string, unknown>, required: string[] = []) => ({
+export const obj = (properties: Record<string, unknown>, required: string[] = []) => ({
   type: 'object',
   properties,
   required,
@@ -43,7 +51,7 @@ const evidenceSchema = {
   required: ['file', 'line'],
 }
 
-const opSchema = {
+export const opSchema = {
   type: 'object',
   description:
     'One operation on the map: addNode {id, kind, label, file, takes, returns, note}, removeNode {id}, updateNode {id, ...}, ' +

@@ -40,7 +40,7 @@ describe('the MCP server', () => {
     }
     for (const t of list.tools) expect(t.inputSchema).toMatchObject({ type: 'object' })
     await expect(mcp.request('ping')).resolves.toEqual({})
-    await expect(mcp.request('resources/list')).rejects.toThrow(/method not found/)
+    await expect(mcp.request('prompts/list')).rejects.toThrow(/method not found/)
     const bad = await mcp.request('tools/call', { name: 'nope', arguments: {} }).catch(e => e)
     expect(String(bad)).toMatch(/unknown tool/)
   })

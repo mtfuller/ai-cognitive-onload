@@ -1190,7 +1190,7 @@ var Sysedit = class extends EventEmitter {
     const model = this.store.readModel();
     const cs = this.store.activeChange();
     const stage = stageOf(cs, !!model);
-    const state = this.store.readState();
+    const state2 = this.store.readState();
     return {
       root: this.store.root,
       repo: this.store.repoName(),
@@ -1209,8 +1209,20 @@ var Sysedit = class extends EventEmitter {
         questions: cs.questions.length,
         blockers: cs.status === "in-review" ? approvalBlockers(cs) : []
       } : null,
-      editorUrl: state.editorUrl
+      editorUrl: state2.editorUrl
     };
+  }
+  /** Everything an editor needs to draw: status, the model, and the active change with its proposed model. */
+  editorState() {
+    const status = this.status();
+    const model = this.store.readModel();
+    let change = null;
+    try {
+      change = status.change ? this.getChange() : null;
+    } catch {
+      change = null;
+    }
+    return { status, model, change };
   }
   // --- the model -----------------------------------------------------------
   saveModel(model, opts = {}) {
@@ -1391,7 +1403,8 @@ var Sysedit = class extends EventEmitter {
 };
 
 // src/cli/main.ts
-import { readFileSync as readFileSync3 } from "node:fs";
+import { readFileSync as readFileSync4 } from "node:fs";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
 
 // src/http/server.ts
 import { randomBytes } from "node:crypto";
@@ -1411,7 +1424,7 @@ function defaultEditorDir() {
   const candidates = [join2(here, "editor"), join2(here, "..", "..", "plugins", "sysedit", "dist", "editor")];
   return candidates.find((d) => existsSync2(join2(d, "index.html"))) ?? candidates[0];
 }
-async function startEditorServer(app, opts = {}) {
+async function startEditorServer(app2, opts = {}) {
   const token = opts.token ?? randomBytes(16).toString("hex");
   const editorDir = opts.editorDir ?? defaultEditorDir();
   const clients = /* @__PURE__ */ new Set();
@@ -1421,11 +1434,11 @@ data: ${JSON.stringify({ what })}
 
 `);
   };
-  app.on("changed", push);
+  app2.on("changed", push);
   let watcher;
   let debounce;
   try {
-    watcher = watch(app.store.dir, { recursive: true }, () => {
+    watcher = watch(app2.store.dir, { recursive: true }, () => {
       clearTimeout(debounce);
       debounce = setTimeout(() => push("disk"), 120);
     });
@@ -1502,50 +1515,41 @@ data: ${JSON.stringify({ what })}
         req.on("close", () => clients.delete(res));
         return;
       }
-      case "GET /api/state": {
-        const status = app.status();
-        const model = app.store.readModel();
-        let change = null;
-        try {
-          change = status.change ? app.getChange() : null;
-        } catch {
-          change = null;
-        }
-        return send(res, 200, { status, model, change });
-      }
+      case "GET /api/state":
+        return send(res, 200, app2.editorState());
       case "GET /api/source": {
         const file = url2.searchParams.get("file") ?? "";
         const start = Number(url2.searchParams.get("start") ?? "1");
         const end = Number(url2.searchParams.get("end") ?? String(start + 20));
-        const lines = app.store.readLines(file, start, end);
+        const lines = app2.store.readLines(file, start, end);
         if (!lines) throw new HttpError(404, `can't read ${file}`);
         return send(res, 200, lines);
       }
       case "PUT /api/change/ops": {
         const body = await readBody(req);
         if (!Array.isArray(body.ops)) throw new HttpError(400, "ops must be an array");
-        return send(res, 200, app.setOps(body.ops, "engineer", typeof body.intent === "string" ? body.intent : void 0));
+        return send(res, 200, app2.setOps(body.ops, "engineer", typeof body.intent === "string" ? body.intent : void 0));
       }
       case "POST /api/change/intent": {
         const body = await readBody(req);
-        return send(res, 200, app.setIntent(String(body.intent ?? "")));
+        return send(res, 200, app2.setIntent(String(body.intent ?? "")));
       }
       case "POST /api/change/accept-op": {
         const body = await readBody(req);
-        return send(res, 200, app.acceptOp(Number(body.index)));
+        return send(res, 200, app2.acceptOp(Number(body.index)));
       }
       case "POST /api/change/remove-op": {
         const body = await readBody(req);
-        return send(res, 200, app.removeOp(Number(body.index)));
+        return send(res, 200, app2.removeOp(Number(body.index)));
       }
       case "POST /api/change/submit":
-        return send(res, 200, app.submit());
+        return send(res, 200, app2.submit());
       case "POST /api/answer": {
         const body = await readBody(req);
         return send(
           res,
           200,
-          app.answer({
+          app2.answer({
             questionId: String(body.questionId ?? ""),
             optionId: body.optionId ? String(body.optionId) : void 0,
             text: body.text ? String(body.text) : void 0
@@ -1555,16 +1559,16 @@ data: ${JSON.stringify({ what })}
       case "POST /api/rate": {
         const body = await readBody(req);
         if (body.rating !== "useful" && body.rating !== "noise") throw new HttpError(400, "rating is useful or noise");
-        return send(res, 200, app.rate(String(body.questionId ?? ""), body.rating));
+        return send(res, 200, app2.rate(String(body.questionId ?? ""), body.rating));
       }
       case "POST /api/dismiss": {
         const body = await readBody(req);
-        return send(res, 200, app.dismiss(String(body.questionId ?? "")));
+        return send(res, 200, app2.dismiss(String(body.questionId ?? "")));
       }
       case "POST /api/approve":
-        return send(res, 200, app.approve());
+        return send(res, 200, app2.approve());
       case "GET /api/mermaid":
-        return send(res, 200, { mermaid: app.mermaid({ proposed: url2.searchParams.get("proposed") === "1" }) });
+        return send(res, 200, { mermaid: app2.mermaid({ proposed: url2.searchParams.get("proposed") === "1" }) });
       default:
         throw new HttpError(404, `no route ${route}`);
     }
@@ -1583,7 +1587,7 @@ data: ${JSON.stringify({ what })}
     token,
     server,
     close: () => new Promise((resolve2) => {
-      app.off("changed", push);
+      app2.off("changed", push);
       watcher?.close();
       for (const res of clients) res.end();
       clients.clear();
@@ -1595,6 +1599,10 @@ data: ${JSON.stringify({ what })}
 
 // src/mcp/server.ts
 import { createInterface } from "node:readline";
+
+// src/mcp/app.ts
+import { existsSync as existsSync3, readFileSync as readFileSync3 } from "node:fs";
+import { join as join3 } from "node:path";
 
 // src/mcp/tools.ts
 var obj = (properties, required = []) => ({
@@ -1644,8 +1652,8 @@ var TOOLS = [
     name: "status",
     description: "Where the System Editor process stands: the stage, the active change, open blocking questions, whether the model is stale, and the editor URL. Call it first.",
     inputSchema: obj({}),
-    run: ({}, { app }) => {
-      const s = app.status();
+    run: ({}, { app: app2 }) => {
+      const s = app2.status();
       return { text: json(s), data: s };
     }
   },
@@ -1653,8 +1661,8 @@ var TOOLS = [
     name: "save_model",
     description: `Validate and save the system model to .sysedit/model.json. Every node needs a source file and line range (unless external), and every edge read from code needs evidence (file and line); anything guessed from config, dynamic dispatch or an event bus must be confidence "inferred" with a note saying how. An invalid model is not saved; fix the errors and call again. Set merge: true when saving one entry point's slice into an existing model.`,
     inputSchema: obj({ model: modelSchema, merge: { type: "boolean" } }, ["model"]),
-    run: ({ model, merge }, { app }) => {
-      const { report, stats } = app.saveModel(model, { merge: !!merge });
+    run: ({ model, merge }, { app: app2 }) => {
+      const { report, stats } = app2.saveModel(model, { merge: !!merge });
       return {
         text: `${report.ok ? "Saved." : "Not saved."} ${stats.nodes} nodes, ${stats.edges} edges (${stats.inferred} inferred), ${stats.flows} flows.
 ${formatReport(report)}`,
@@ -1667,8 +1675,8 @@ ${formatReport(report)}`,
     name: "validate_model",
     description: "Check .sysedit/model.json against the files on disk: every source and evidence line must exist.",
     inputSchema: obj({}),
-    run: ({}, { app }) => {
-      const report = app.validate();
+    run: ({}, { app: app2 }) => {
+      const report = app2.validate();
       return { text: formatReport(report), data: report, isError: !report.ok };
     }
   },
@@ -1676,8 +1684,8 @@ ${formatReport(report)}`,
     name: "get_model",
     description: "Read the system model, optionally one flow and one detail level (services, modules, functions).",
     inputSchema: obj({ flow: { type: "string" }, level: { type: "string", enum: [...LEVELS] } }),
-    run: ({ flow, level }, { app }) => {
-      const model = app.getModel({ flow, level });
+    run: ({ flow, level }, { app: app2 }) => {
+      const model = app2.getModel({ flow, level });
       return { text: json(model), data: model };
     }
   },
@@ -1693,8 +1701,8 @@ ${formatReport(report)}`,
       },
       ["title", "request"]
     ),
-    run: ({ title, request, flow, risk }, { app }) => {
-      const cs = app.startChange({ title, request, flow, risk });
+    run: ({ title, request, flow, risk }, { app: app2 }) => {
+      const cs = app2.startChange({ title, request, flow, risk });
       return { text: `Started change ${cs.id} (${cs.risk} risk). Now ask the engineer to draw it: call open_editor.`, data: cs };
     }
   },
@@ -1702,8 +1710,8 @@ ${formatReport(report)}`,
     name: "get_change",
     description: "Read the active change set: the engineer's intent, the operations they drew, the proposed model with what was added and removed, the files it touches, questions and answers, and what still blocks approval.",
     inputSchema: obj({ id: { type: "string" } }),
-    run: ({ id }, { app }) => {
-      const c = app.getChange(id);
+    run: ({ id }, { app: app2 }) => {
+      const c = app2.getChange(id);
       return { text: json(c), data: c };
     }
   },
@@ -1711,8 +1719,8 @@ ${formatReport(report)}`,
     name: "propose_ops",
     description: "Add operations to the map that the ENGINEER stated in chat, transcribed with their verbatim words in `quote`. Never invent the design: an operation without a quote is recorded as Claude's suggestion, shown dashed in the editor, and blocks approval until the engineer accepts or removes it.",
     inputSchema: obj({ ops: { type: "array", items: opSchema } }, ["ops"]),
-    run: ({ ops }, { app }) => {
-      const cs = app.transcribeOps(ops);
+    run: ({ ops }, { app: app2 }) => {
+      const cs = app2.transcribeOps(ops);
       const suggested = cs.ops.filter((o) => o.by === "claude").length;
       return {
         text: `The map has ${cs.ops.length} operation(s)${suggested ? `, ${suggested} of them suggestions the engineer must accept` : ""}.`,
@@ -1724,13 +1732,13 @@ ${formatReport(report)}`,
     name: "set_intent",
     description: "Record what the engineer is trying to do, in the engineer's words. Ask them; don't write it for them.",
     inputSchema: obj({ intent: { type: "string" } }, ["intent"]),
-    run: ({ intent }, { app }) => ({ text: "Intent recorded.", data: app.setIntent(intent) })
+    run: ({ intent }, { app: app2 }) => ({ text: "Intent recorded.", data: app2.setIntent(intent) })
   },
   {
     name: "submit_change",
     description: "Submit the drawn change for review (usually the engineer does this from the editor). Needs an intent and at least one operation.",
     inputSchema: obj({}),
-    run: ({}, { app }) => ({ text: "Submitted for review. Run the grill: /sysedit:grill.", data: app.submit() })
+    run: ({}, { app: app2 }) => ({ text: "Submitted for review. Run the grill: /sysedit:grill.", data: app2.submit() })
   },
   {
     name: "add_questions",
@@ -1770,8 +1778,8 @@ ${formatReport(report)}`,
       },
       ["questions"]
     ),
-    run: ({ questions }, { app }) => {
-      const r = app.addQuestions(questions);
+    run: ({ questions }, { app: app2 }) => {
+      const r = app2.addQuestions(questions);
       return {
         text: `Asked ${r.accepted.length} question(s); ${r.openBlocking} blocking open.` + (r.dropped.length ? `
 Dropped:
@@ -1793,11 +1801,11 @@ ${r.dropped.map((d) => `  ${d.id}: ${d.reason}`).join("\n")}` : ""),
       },
       ["questionId", "quote"]
     ),
-    run: ({ questionId, optionId, text: text2, ops, quote }, { app }) => {
+    run: ({ questionId, optionId, text: text2, ops, quote }, { app: app2 }) => {
       if (typeof quote !== "string" || quote.trim().length === 0) {
         return { text: "Not recorded: `quote` must hold the engineer's own words for this answer. If they haven't answered, ask them.", isError: true };
       }
-      const cs = app.answer({ questionId, optionId, text: text2, ops, quote });
+      const cs = app2.answer({ questionId, optionId, text: text2, ops, quote });
       const open = cs.questions.filter((q) => q.severity === "blocking" && q.status === "open").length;
       return { text: `Recorded. ${open} blocking question(s) still open.`, data: cs };
     }
@@ -1806,17 +1814,17 @@ ${r.dropped.map((d) => `  ${d.id}: ${d.reason}`).join("\n")}` : ""),
     name: "rate_question",
     description: "Record whether the engineer found a question useful or noise; noisy rubric items get cut.",
     inputSchema: obj({ questionId: { type: "string" }, rating: { type: "string", enum: ["useful", "noise"] } }, ["questionId", "rating"]),
-    run: ({ questionId, rating }, { app }) => ({ text: "Rated.", data: app.rate(questionId, rating) })
+    run: ({ questionId, rating }, { app: app2 }) => ({ text: "Rated.", data: app2.rate(questionId, rating) })
   },
   {
     name: "approve_change",
     description: 'Approve the change once the engineer says so. `quote` is required: their words approving it, verbatim ("approve it", "yes, go ahead"). Refused while a blocking question is open or a suggested operation is unaccepted. After approval, writes the map covers are allowed.',
     inputSchema: obj({ quote: { type: "string", description: "What the engineer typed to approve, verbatim." } }, ["quote"]),
-    run: ({ quote }, { app }) => {
+    run: ({ quote }, { app: app2 }) => {
       if (typeof quote !== "string" || quote.trim().length === 0) {
         return { text: "Not approved: `quote` must hold the engineer's words approving the change. Ask them whether to approve.", isError: true };
       }
-      return { text: "Approved. Plan it with /sysedit:plan.", data: app.approve(quote) };
+      return { text: "Approved. Plan it with /sysedit:plan.", data: app2.approve(quote) };
     }
   },
   {
@@ -1841,20 +1849,20 @@ ${r.dropped.map((d) => `  ${d.id}: ${d.reason}`).join("\n")}` : ""),
       },
       ["tasks"]
     ),
-    run: ({ tasks }, { app }) => ({ text: "Plan saved.", data: app.savePlan(tasks) })
+    run: ({ tasks }, { app: app2 }) => ({ text: "Plan saved.", data: app2.savePlan(tasks) })
   },
   {
     name: "mark_implemented",
     description: "Mark the approved change as built, before verifying it.",
     inputSchema: obj({}),
-    run: ({}, { app }) => ({ text: "Marked implemented. Verify it with /sysedit:verify.", data: app.markImplemented() })
+    run: ({}, { app: app2 }) => ({ text: "Marked implemented. Verify it with /sysedit:verify.", data: app2.markImplemented() })
   },
   {
     name: "verify_change",
     description: "Compare the built code with the approved map. Pass `actual`, a model re-mapped from the changed code (same ids for unchanged nodes, the drawn ids for new ones); without it the saved model is used. Reports edges drawn but not built, edges built but not drawn, and edges removed on the map but still in the code.",
     inputSchema: obj({ actual: modelSchema }),
-    run: ({ actual }, { app }) => {
-      const drift = app.verify(actual);
+    run: ({ actual }, { app: app2 }) => {
+      const drift = app2.verify(actual);
       return { text: formatDrift(drift), data: drift, isError: false };
     }
   },
@@ -1862,7 +1870,7 @@ ${r.dropped.map((d) => `  ${d.id}: ${d.reason}`).join("\n")}` : ""),
     name: "set_adr",
     description: "Record the path of the decision record written for the change.",
     inputSchema: obj({ path: { type: "string" } }, ["path"]),
-    run: ({ path }, { app }) => ({ text: "Recorded.", data: app.setAdr(path) })
+    run: ({ path }, { app: app2 }) => ({ text: "Recorded.", data: app2.setAdr(path) })
   },
   {
     name: "skip_change",
@@ -1875,11 +1883,11 @@ ${r.dropped.map((d) => `  ${d.id}: ${d.reason}`).join("\n")}` : ""),
       },
       ["reason", "quote"]
     ),
-    run: ({ reason, title, quote }, { app }) => {
+    run: ({ reason, title, quote }, { app: app2 }) => {
       if (typeof quote !== "string" || quote.trim().length === 0) {
         return { text: "Not skipped: `quote` must hold the engineer's words asking to skip. Skipping is their call.", isError: true };
       }
-      const r = app.skip(reason, { title });
+      const r = app2.skip(reason, { title });
       return { text: r.change ? `Skipped ${r.change.id}; reason logged.` : "Skip logged; no change was in progress.", data: r };
     }
   },
@@ -1887,8 +1895,8 @@ ${r.dropped.map((d) => `  ${d.id}: ${d.reason}`).join("\n")}` : ""),
     name: "close_change",
     description: "Clear the active change once it is verified or skipped.",
     inputSchema: obj({}),
-    run: ({}, { app }) => {
-      app.closeChange();
+    run: ({}, { app: app2 }) => {
+      app2.closeChange();
       return { text: "No change is active now." };
     }
   },
@@ -1896,9 +1904,9 @@ ${r.dropped.map((d) => `  ${d.id}: ${d.reason}`).join("\n")}` : ""),
     name: "open_editor",
     description: "Start the System Editor on localhost and return its URL, for the engineer to trace the flow, draw the change and answer questions. Give the engineer the URL.",
     inputSchema: obj({}),
-    run: async ({}, { app, openEditor }) => {
+    run: async ({}, { app: app2, openEditor }) => {
       const server = await openEditor();
-      app.store.writeState({ editorUrl: server.url });
+      app2.store.writeState({ editorUrl: server.url });
       return { text: `System Editor: ${server.url}`, data: { url: server.url } };
     }
   },
@@ -1906,8 +1914,8 @@ ${r.dropped.map((d) => `  ${d.id}: ${d.reason}`).join("\n")}` : ""),
     name: "render_mermaid",
     description: "Render the model, one flow, or the proposed change as a Mermaid flowchart, for a terminal, PR or ADR.",
     inputSchema: obj({ flow: { type: "string" }, proposed: { type: "boolean" } }),
-    run: ({ flow, proposed }, { app }) => {
-      const text2 = app.mermaid({ flow, proposed });
+    run: ({ flow, proposed }, { app: app2 }) => {
+      const text2 = app2.mermaid({ flow, proposed });
       return { text: text2, data: { mermaid: text2 } };
     }
   },
@@ -1923,8 +1931,8 @@ ${r.dropped.map((d) => `  ${d.id}: ${d.reason}`).join("\n")}` : ""),
       },
       ["flow", "score", "missed"]
     ),
-    run: ({ flow, change, score, missed }, { app }) => {
-      const r = app.explainBack({ flow, change, score, missed });
+    run: ({ flow, change, score, missed }, { app: app2 }) => {
+      const r = app2.explainBack({ flow, change, score, missed });
       return { text: `Recorded explain-back for ${flow}: ${Math.round(r.score * 100)}%.`, data: r };
     }
   },
@@ -1932,23 +1940,168 @@ ${r.dropped.map((d) => `  ${d.id}: ${d.reason}`).join("\n")}` : ""),
     name: "get_metrics",
     description: "The process metrics: time to submit, time in review, grill hit rate, drift caught, skip rate, explain-back scores.",
     inputSchema: obj({}),
-    run: ({}, { app }) => {
-      const m = app.metrics();
+    run: ({}, { app: app2 }) => {
+      const m = app2.metrics();
       return { text: formatMetrics(m), data: m };
     }
   }
+];
+
+// src/mcp/app.ts
+var UI_EXTENSION = "io.modelcontextprotocol/ui";
+var UI_MIME = "text/html;profile=mcp-app";
+var EDITOR_URI = "ui://sysedit/editor";
+var TABS = ["trace", "edit", "grill", "plan"];
+function rendersApps(capabilities) {
+  const ext = capabilities?.extensions?.[UI_EXTENSION];
+  return Array.isArray(ext?.mimeTypes) && ext.mimeTypes.includes(UI_MIME);
+}
+var EDITOR_RESOURCE = {
+  uri: EDITOR_URI,
+  name: "System Editor",
+  description: "Trace the flow, draw the change, and answer Claude\u2019s questions, inline in the chat.",
+  mimeType: UI_MIME
+};
+function editorHtml(editorDir = defaultEditorDir()) {
+  const js = join3(editorDir, "app.js");
+  const css = join3(editorDir, "app.css");
+  if (!existsSync3(js) || !existsSync3(css)) throw new Error(`editor assets are missing from ${editorDir}; run npm run build`);
+  const script = readFileSync3(js, "utf8").replace(/<\/script/gi, "<\\/script").replace(/<!--/g, "<\\!--");
+  const style = readFileSync3(css, "utf8").replace(/<\/style/gi, "<\\/style");
+  return [
+    "<!doctype html>",
+    '<html lang="en">',
+    "<head>",
+    '<meta charset="utf-8" />',
+    '<meta name="viewport" content="width=device-width, initial-scale=1" />',
+    "<title>System Editor</title>",
+    `<style>${style}</style>`,
+    "</head>",
+    '<body class="in-chat">',
+    '<div id="app"><p class="boot">Loading System Editor\u2026</p></div>',
+    '<script>window.__SYSEDIT__ = { transport: "mcp-app" }</script>',
+    `<script type="module">${script}</script>`,
+    "</body>",
+    "</html>"
+  ].join("\n");
+}
+function readEditorResource(editorDir) {
+  return {
+    contents: [
+      {
+        uri: EDITOR_URI,
+        mimeType: UI_MIME,
+        text: editorHtml(editorDir),
+        // No external origins: everything is inline, and data comes through the host.
+        _meta: { ui: { csp: {}, prefersBorder: true } }
+      }
+    ]
+  };
+}
+var app = (name, description, inputSchema, run) => ({
+  name,
+  description,
+  inputSchema,
+  ui: { resourceUri: EDITOR_URI, visibility: ["app"] },
+  run
+});
+var state = (ctx) => ctx.app.editorState();
+var SHOW_EDITOR = {
+  name: "show_editor",
+  description: "Show the System Editor inline in this conversation, where the engineer traces the flow on the map, draws the change, and answers your questions. Use it after the map is saved and a change is started, and again whenever the engineer should look at or act on the map. `tab` opens a screen: trace, edit, grill or plan. `focus` names a box to trace to. The engineer acts in the editor; you never act for them.",
+  inputSchema: obj({ tab: { type: "string", enum: TABS }, focus: { type: "string" } }),
+  ui: { resourceUri: EDITOR_URI, visibility: ["model", "app"] },
+  run: (_args, ctx) => {
+    const s = ctx.app.editorState();
+    const lines = [`System Editor is shown in the conversation: ${s.status.stageLabel}.`];
+    if (s.change) {
+      const cs = s.change.change;
+      lines.push(`Change ${cs.id}: ${cs.title} [${cs.status}], ${cs.ops.length} operation(s) drawn, ${cs.questions.length} question(s).`);
+      if (s.change.blockers.length && cs.status === "in-review") lines.push(`Waiting on the engineer: ${s.change.blockers.join("; ")}.`);
+    } else if (!s.model) {
+      lines.push("There is no map yet: map the code first.");
+    }
+    return { text: lines.join("\n"), structured: state(ctx) };
+  }
+};
+var APP_TOOLS = [
+  app("app_state", "The editor\u2019s view of .sysedit/: status, model, and the active change.", obj({}), (_a, ctx) => ({ text: "state", structured: state(ctx) })),
+  app(
+    "app_source",
+    "Lines of a repository file, for the code beside each step.",
+    obj({ file: { type: "string" }, start: { type: "integer" }, end: { type: "integer" } }, ["file", "start", "end"]),
+    ({ file, start, end }, ctx) => {
+      const lines = ctx.app.store.readLines(String(file), Number(start), Number(end));
+      if (!lines) return { text: `can't read ${file}`, isError: true };
+      return { text: `${file}:${lines.start}`, structured: lines };
+    }
+  ),
+  app(
+    "app_set_ops",
+    "Save the map the engineer drew, and optionally their intent.",
+    obj({ ops: { type: "array", items: opSchema }, intent: { type: "string" } }, ["ops"]),
+    ({ ops, intent }, ctx) => {
+      ctx.app.setOps(ops, "engineer", typeof intent === "string" ? intent : void 0);
+      return { text: "saved", structured: state(ctx) };
+    }
+  ),
+  app("app_set_intent", "Save what the engineer is trying to do.", obj({ intent: { type: "string" } }, ["intent"]), ({ intent }, ctx) => {
+    ctx.app.setIntent(String(intent));
+    return { text: "saved", structured: state(ctx) };
+  }),
+  app("app_accept_op", "The engineer accepts an operation Claude suggested.", obj({ index: { type: "integer" } }, ["index"]), ({ index }, ctx) => {
+    ctx.app.acceptOp(Number(index));
+    return { text: "accepted", structured: state(ctx) };
+  }),
+  app("app_remove_op", "The engineer removes an operation from the map.", obj({ index: { type: "integer" } }, ["index"]), ({ index }, ctx) => {
+    ctx.app.removeOp(Number(index));
+    return { text: "removed", structured: state(ctx) };
+  }),
+  app("app_submit", "The engineer submits the drawn change for review.", obj({}), (_a, ctx) => {
+    ctx.app.submit();
+    return { text: "submitted", structured: state(ctx) };
+  }),
+  app(
+    "app_answer",
+    "The engineer answers a question: an option, or their own words.",
+    obj({ questionId: { type: "string" }, optionId: { type: "string" }, text: { type: "string" } }, ["questionId"]),
+    ({ questionId, optionId, text: text2 }, ctx) => {
+      ctx.app.answer({ questionId: String(questionId), optionId: optionId ? String(optionId) : void 0, text: text2 ? String(text2) : void 0 });
+      return { text: "answered", structured: state(ctx) };
+    }
+  ),
+  app(
+    "app_rate",
+    "The engineer rates a question useful or noise.",
+    obj({ questionId: { type: "string" }, rating: { type: "string", enum: ["useful", "noise"] } }, ["questionId", "rating"]),
+    ({ questionId, rating }, ctx) => {
+      ctx.app.rate(String(questionId), rating === "noise" ? "noise" : "useful");
+      return { text: "rated", structured: state(ctx) };
+    }
+  ),
+  app("app_dismiss", "The engineer dismisses a worth-checking question.", obj({ questionId: { type: "string" } }, ["questionId"]), ({ questionId }, ctx) => {
+    ctx.app.dismiss(String(questionId));
+    return { text: "dismissed", structured: state(ctx) };
+  }),
+  app("app_approve", "The engineer approves the change from the editor.", obj({}), (_a, ctx) => {
+    ctx.app.approve("Approved in the System Editor");
+    return { text: "approved", structured: state(ctx) };
+  })
 ];
 
 // src/mcp/server.ts
 var SERVER_INFO = { name: "sysedit", version: "0.1.0" };
 var SUPPORTED = ["2025-06-18", "2025-03-26", "2024-11-05"];
 var INSTRUCTIONS = "System Editor keeps the engineer designing the change. Claude maps the code (with evidence for every edge), the engineer draws the change in the editor, Claude questions it with evidence, the engineer answers, and only then does Claude plan and build what was approved. Never draw the design or answer questions for the engineer.";
-function createHandler(app, opts = {}) {
+var APP_INSTRUCTIONS = "This host renders the System Editor in the conversation: call show_editor to put it in front of the engineer (after the map is saved and a change is started, and whenever they should act on it). The engineer draws, answers and approves there; their submit or approval arrives as their next message.";
+function createHandler(app2, opts = {}) {
   let editor;
   const ctx = {
-    app,
-    openEditor: async () => editor ??= await startEditorServer(app, { editorDir: opts.editorDir })
+    app: app2,
+    openEditor: async () => editor ??= await startEditorServer(app2, { editorDir: opts.editorDir })
   };
+  let apps = false;
+  const listed = () => apps ? [...TOOLS, SHOW_EDITOR, ...APP_TOOLS] : TOOLS;
   const handle = async (message) => {
     const { id, method, params } = message;
     const isRequest = id !== void 0 && id !== null;
@@ -1957,11 +2110,12 @@ function createHandler(app, opts = {}) {
     switch (method) {
       case "initialize": {
         const asked = params?.protocolVersion;
+        apps = rendersApps(params?.capabilities);
         return reply({
           protocolVersion: SUPPORTED.includes(asked) ? asked : SUPPORTED[0],
-          capabilities: { tools: { listChanged: false } },
+          capabilities: { tools: { listChanged: false }, resources: { listChanged: false } },
           serverInfo: SERVER_INFO,
-          instructions: INSTRUCTIONS
+          instructions: apps ? `${INSTRUCTIONS} ${APP_INSTRUCTIONS}` : INSTRUCTIONS
         });
       }
       case "notifications/initialized":
@@ -1971,15 +2125,33 @@ function createHandler(app, opts = {}) {
         return reply({});
       case "tools/list":
         return reply({
-          tools: TOOLS.map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema }))
+          tools: listed().map((t) => ({
+            name: t.name,
+            description: t.description,
+            inputSchema: t.inputSchema,
+            ...t.ui && { _meta: { ui: t.ui } }
+          }))
         });
+      case "resources/list":
+        return reply({ resources: apps ? [EDITOR_RESOURCE] : [] });
+      case "resources/templates/list":
+        return reply({ resourceTemplates: [] });
+      case "resources/read": {
+        if (params?.uri !== EDITOR_URI) return error(-32002, `unknown resource ${params?.uri}`);
+        try {
+          return reply(readEditorResource(opts.editorDir));
+        } catch (e) {
+          return error(-32603, e instanceof Error ? e.message : String(e));
+        }
+      }
       case "tools/call": {
-        const tool = TOOLS.find((t) => t.name === params?.name);
+        const tool = listed().find((t) => t.name === params?.name);
         if (!tool) return error(-32602, `unknown tool ${params?.name}`);
         try {
           const result = await tool.run(params?.arguments ?? {}, ctx);
           return reply({
             content: [{ type: "text", text: result.text }],
+            ...result.structured && { structuredContent: result.structured },
             isError: !!result.isError
           });
         } catch (e) {
@@ -1992,10 +2164,10 @@ function createHandler(app, opts = {}) {
         return error(-32601, `method not found: ${method}`);
     }
   };
-  return { handle, close: async () => editor?.close() };
+  return { handle, close: async () => editor?.close(), rendersApps: () => apps };
 }
-async function serveStdio(app, opts = {}) {
-  const { handle, close } = createHandler(app, opts);
+async function serveStdio(app2, opts = {}) {
+  const { handle, close } = createHandler(app2, opts);
   const write = (msg) => process.stdout.write(JSON.stringify(msg) + "\n");
   const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
   const pending = /* @__PURE__ */ new Set();
@@ -2036,6 +2208,8 @@ Usage: sysedit <command> [options]
   metrics [--json]         Process metrics
   gate                     PreToolUse hook: read the tool call on stdin, hold writes until approved
   ci                       Fail when a change set in .sysedit/ isn't verified or skipped
+  desktop-config           Print the Claude desktop config entry for this repository,
+                           so the editor can open inside the chat
 
 Options: --root DIR (default: $SYSEDIT_ROOT, $CLAUDE_PROJECT_DIR, or the working directory)
 `;
@@ -2057,15 +2231,15 @@ async function main(argv) {
     out(HELP);
     return 0;
   }
-  const app = new Sysedit(root);
+  const app2 = new Sysedit(root);
   switch (command2) {
     case "mcp":
-      await serveStdio(app);
+      await serveStdio(app2);
       return 0;
     case "serve": {
       const port = flag(args, "port");
-      const server = await startEditorServer(app, { port: port ? Number(port) : void 0 });
-      app.store.writeState({ editorUrl: server.url });
+      const server = await startEditorServer(app2, { port: port ? Number(port) : void 0 });
+      app2.store.writeState({ editorUrl: server.url });
       out(`System Editor: ${server.url}`);
       await new Promise((resolve2) => {
         process.once("SIGINT", resolve2);
@@ -2075,7 +2249,7 @@ async function main(argv) {
       return 0;
     }
     case "status": {
-      const s = app.status();
+      const s = app2.status();
       if (args.includes("--json")) {
         out(JSON.stringify(s, null, 2));
         return 0;
@@ -2093,18 +2267,18 @@ async function main(argv) {
     }
     case "validate": {
       const file = args.find((a) => !a.startsWith("--") && a !== root);
-      const model = file ? JSON.parse(readFileSync3(file, "utf8")) : void 0;
-      const report = app.validate(model);
+      const model = file ? JSON.parse(readFileSync4(file, "utf8")) : void 0;
+      const report = app2.validate(model);
       out(formatReport(report));
       return report.ok ? 0 : 1;
     }
     case "mermaid":
-      out(app.mermaid({ flow: flag(args, "flow"), proposed: args.includes("--proposed") }));
+      out(app2.mermaid({ flow: flag(args, "flow"), proposed: args.includes("--proposed") }));
       return 0;
     case "verify": {
       const file = flag(args, "actual");
-      const actual = file ? JSON.parse(readFileSync3(file, "utf8")) : void 0;
-      const drift = app.verify(actual);
+      const actual = file ? JSON.parse(readFileSync4(file, "utf8")) : void 0;
+      const drift = app2.verify(actual);
       out(formatDrift(drift));
       return drift.ok ? 0 : 1;
     }
@@ -2114,12 +2288,12 @@ async function main(argv) {
         errOut(`sysedit skip needs --reason "why this change doesn't need the process"`);
         return 2;
       }
-      const r = app.skip(reason);
+      const r = app2.skip(reason);
       out(r.change ? `Skipped ${r.change.id}; reason logged.` : "Skip logged.");
       return 0;
     }
     case "metrics": {
-      const m = app.metrics();
+      const m = app2.metrics();
       out(args.includes("--json") ? JSON.stringify(m, null, 2) : formatMetrics(m));
       return 0;
     }
@@ -2129,15 +2303,15 @@ async function main(argv) {
       let change = null;
       let model = null;
       try {
-        change = app.store.activeChange();
-        model = app.store.readModel();
+        change = app2.store.activeChange();
+        model = app2.store.readModel();
       } catch {
       }
       const decision = decide({
         tool: String(input.tool_name ?? ""),
         filePath: input.tool_input?.file_path ?? input.tool_input?.notebook_path,
-        root: app.store.root,
-        cwd: input.cwd ?? app.store.root,
+        root: app2.store.root,
+        cwd: input.cwd ?? app2.store.root,
         mode,
         change,
         model
@@ -2157,10 +2331,10 @@ async function main(argv) {
     }
     case "ci": {
       const problems = [];
-      const report = app.validate();
-      if (app.store.readModel() && !report.ok) problems.push(`model: ${report.errors.length} error(s)
+      const report = app2.validate();
+      if (app2.store.readModel() && !report.ok) problems.push(`model: ${report.errors.length} error(s)
 ${formatReport(report)}`);
-      for (const cs of app.store.listChanges()) {
+      for (const cs of app2.store.listChanges()) {
         if (cs.status === "verified" || cs.status === "skipped") continue;
         problems.push(`change ${cs.id} is ${cs.status}: verify it (/sysedit:verify) or skip it with a reason before merging`);
         if (cs.drift && !cs.drift.ok) problems.push(formatDrift(cs.drift));
@@ -2171,6 +2345,11 @@ ${formatReport(report)}`);
       }
       errOut(problems.join("\n"));
       return 1;
+    }
+    case "desktop-config": {
+      const entry = { command: process.execPath, args: [fileURLToPath2(import.meta.url), "mcp"], env: { SYSEDIT_ROOT: app2.store.root } };
+      out(JSON.stringify({ mcpServers: { sysedit: entry } }, null, 2));
+      return 0;
     }
     default:
       errOut(`unknown command "${command2}"

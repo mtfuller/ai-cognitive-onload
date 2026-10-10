@@ -2,6 +2,7 @@
 // gate and the CI checks. Bundled to plugins/sysedit/dist/sysedit.mjs.
 
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
 import { decide, type GateMode } from '../../plugins/sysedit/core/gate.ts'
 import { formatDrift } from '../../plugins/sysedit/core/drift.ts'
@@ -27,6 +28,8 @@ Usage: sysedit <command> [options]
   metrics [--json]         Process metrics
   gate                     PreToolUse hook: read the tool call on stdin, hold writes until approved
   ci                       Fail when a change set in .sysedit/ isn't verified or skipped
+  desktop-config           Print the Claude desktop config entry for this repository,
+                           so the editor can open inside the chat
 
 Options: --root DIR (default: $SYSEDIT_ROOT, $CLAUDE_PROJECT_DIR, or the working directory)
 `
@@ -178,6 +181,13 @@ export async function main(argv: string[]): Promise<number> {
       }
       errOut(problems.join('\n'))
       return 1
+    }
+
+    case 'desktop-config': {
+      // Claude desktop starts servers without your shell's PATH, so name node and the bundle absolutely.
+      const entry = { command: process.execPath, args: [fileURLToPath(import.meta.url), 'mcp'], env: { SYSEDIT_ROOT: app.store.root } }
+      out(JSON.stringify({ mcpServers: { sysedit: entry } }, null, 2))
+      return 0
     }
 
     default:

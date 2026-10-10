@@ -39,8 +39,9 @@ System Editor builds the first pattern into the workflow. Claude does the tediou
 | `/sysedit:explain` | Skill | Explain-back check: explain the flow without the tool; Claude scores it and shows what you missed |
 | `sysedit` server | MCP server | Tools for the model, change set, questions, plan and drift check; serves the editor on localhost |
 | Editor | Web app | **Trace**, **Edit**, **Grill**, **Plan**: the four screens from the mockup |
+| Editor in chat | MCP App | The same editor inline in the conversation, served by the `sysedit` server as a `ui://` resource, in hosts that render MCP Apps (Claude desktop chat) |
 | Mod | Hooks module | Gate on `Edit`/`Write` until approved; band above the prompt; `/sysedit-status` pane; asks *you* before Claude approves or skips |
-| `sysedit` CLI | Node script | `status`, `validate`, `mermaid`, `verify`, `metrics`, `gate` (PreToolUse settings hook), `ci` |
+| `sysedit` CLI | Node script | `status`, `validate`, `mermaid`, `verify`, `metrics`, `gate` (PreToolUse settings hook), `ci`, `desktop-config` |
 
 Everything sysedit knows lives in your repository under `.sysedit/`: the model, one JSON change set per change (intent, operations, questions, answers, plan, drift report, history), and logs for skips and explain-back checks. It's reviewed and versioned with the code.
 
@@ -69,6 +70,31 @@ npm ci && npm run build
 claude --plugin-dir plugins/sysedit
 ```
 
+### In the chat
+
+The editor also runs inside the conversation, as an [MCP App](https://modelcontextprotocol.io/docs/extensions/apps): the `sysedit` server serves it as a `ui://sysedit/editor` resource and Claude opens it with `show_editor`. You trace, draw, answer and approve in the chat; submitting or approving sends the next message for you ("I've drawn my change… please review it"), and what you've drawn and answered is kept in Claude's context as you go. It is not a mod: mods draw in Claude Code's terminal and app, while MCP Apps render in hosts that support them, such as Claude desktop chat. Claude Code doesn't render MCP Apps, so there the plugin keeps using the browser editor.
+
+To add it to Claude desktop, build once, then print the config entry for your repository and merge it into `claude_desktop_config.json` (Settings → Developer → Edit Config):
+
+```bash
+npm ci && npm run build
+node plugins/sysedit/dist/sysedit.mjs desktop-config --root /path/to/your/repo
+```
+
+```json
+{
+  "mcpServers": {
+    "sysedit": {
+      "command": "/usr/local/bin/node",
+      "args": ["/path/to/ai-cognitive-onload/plugins/sysedit/dist/sysedit.mjs", "mcp"],
+      "env": { "SYSEDIT_ROOT": "/path/to/your/repo" }
+    }
+  }
+}
+```
+
+Restart Claude desktop and ask it to show the System Editor. The in-chat editor works on the same `.sysedit/` files, so a change drawn in chat can be planned and built from Claude Code, where the gate and the band apply.
+
 ## Testing and evals
 
 Three layers, described in [docs/testing.md](docs/testing.md):
@@ -76,7 +102,7 @@ Three layers, described in [docs/testing.md](docs/testing.md):
 | Layer | Command | What it proves | Model calls |
 |-|-|-|-|
 | Unit + integration | `npm test` | Core logic; the real bundled MCP server over stdio through a full map→draw→grill→approve→plan→build→verify cycle on a git copy of the fixture; editor API security; CLI gate as a PreToolUse hook; eval-suite lint | None |
-| Editor end-to-end | `npm run test:e2e` | Trace, Edit, Grill and Plan in Chromium against a real server | None |
+| Editor end-to-end | `npm run test:e2e` | Trace, Edit, Grill and Plan in Chromium against a real server; the in-chat editor in a sandboxed iframe under a mock MCP Apps host | None |
 | Mod | `npm run test:mod` | Gate, approve/skip confirmation, band and pane, with `claude plugin test` | None |
 | Skill evals | `npm run evals` | Whether the skills actually change Claude's behaviour, with and without the plugin, graded by transcript, files and a judge model | Yes |
 
@@ -101,4 +127,4 @@ docs/                     architecture, testing, evals, metrics; design/ has the
 
 ## Status
 
-This implements phases 0–4 of the [plan](docs/design/system-editor-plan.html) (the map, trace mode, edit mode and change sets, the grill and the gate, plan/build/verify) and the start of phase 5 (risk tiers, skip, explain-back, metrics, eval CI). Not yet built: the MCP App version of the editor, shared repo-wide maps, and language-specific mappers beyond what the mapper agent does with `LSP`, `Grep` and `Read`.
+This implements phases 0–4 of the [plan](docs/design/system-editor-plan.html) (the map, trace mode, edit mode and change sets, the grill and the gate, plan/build/verify) and the start of phase 5 (risk tiers, skip, explain-back, metrics, eval CI). The editor also runs in the chat as an MCP App. Not yet built: shared repo-wide maps, and language-specific mappers beyond what the mapper agent does with `LSP`, `Grep` and `Read`.

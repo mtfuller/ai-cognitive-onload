@@ -6,7 +6,7 @@ import { createInterface } from 'node:readline'
 
 import { CLI } from './fixture.ts'
 
-export type ToolResponse = { content: { type: string; text: string }[]; isError?: boolean }
+export type ToolResponse = { content: { type: string; text: string }[]; isError?: boolean; structuredContent?: any }
 
 export class McpClient {
   private proc: ChildProcessWithoutNullStreams
@@ -46,10 +46,11 @@ export class McpClient {
     this.proc.stdin.write(line + '\n')
   }
 
-  async initialize() {
+  /** `apps: true` initializes as a host that renders MCP Apps, such as Claude desktop. */
+  async initialize(opts: { apps?: boolean } = {}) {
     const r = await this.request('initialize', {
       protocolVersion: '2025-06-18',
-      capabilities: {},
+      capabilities: opts.apps ? { extensions: { 'io.modelcontextprotocol/ui': { mimeTypes: ['text/html;profile=mcp-app'] } } } : {},
       clientInfo: { name: 'sysedit-tests', version: '0' },
     })
     this.notify('notifications/initialized')

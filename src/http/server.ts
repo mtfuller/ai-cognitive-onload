@@ -140,17 +140,8 @@ export async function startEditorServer(
         req.on('close', () => clients.delete(res))
         return
       }
-      case 'GET /api/state': {
-        const status = app.status()
-        const model = app.store.readModel()
-        let change = null
-        try {
-          change = status.change ? app.getChange() : null
-        } catch {
-          change = null
-        }
-        return send(res, 200, { status, model, change })
-      }
+      case 'GET /api/state':
+        return send(res, 200, app.editorState())
       case 'GET /api/source': {
         const file = url.searchParams.get('file') ?? ''
         const start = Number(url.searchParams.get('start') ?? '1')

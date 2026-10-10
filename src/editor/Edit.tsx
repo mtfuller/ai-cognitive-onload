@@ -40,27 +40,33 @@ export function Edit({ model, view, onSubmitted }: { model: SystemModel; view: C
   const [showOriginal, setShowOriginal] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const dirty = useRef(false)
+  // Saves still in flight. Two can overlap (add a box, then name it); the first to land mustn't let a stale copy in.
+  const inFlight = useRef(0)
+  const editingIntent = useRef(false)
   const counter = useRef(1)
+
+  // When our last save landed, so a copy of the change fetched before it can't undo it.
+  const savedAt = useRef('')
 
   // Follow the server when Claude or another tab changes the change set, unless we have unsaved edits.
   useEffect(() => {
-    if (!dirty.current) {
+    if (inFlight.current === 0 && cs.updatedAt >= savedAt.current) {
       setOps(cs.ops)
-      setIntent(cs.intent)
+      if (!editingIntent.current) setIntent(cs.intent)
     }
   }, [cs.updatedAt])
 
   const save = async (next: Op[], nextIntent = intent) => {
-    dirty.current = true
+    inFlight.current += 1
     setSaving(true)
     try {
-      await api.setOps(next, nextIntent)
+      const at = await api.setOps(next, nextIntent)
+      if (at && at > savedAt.current) savedAt.current = at
       setError(null)
     } catch (e) {
       setError(String((e as Error).message))
     } finally {
-      dirty.current = false
+      inFlight.current -= 1
       setSaving(false)
     }
   }
@@ -248,8 +254,12 @@ export function Edit({ model, view, onSubmitted }: { model: SystemModel; view: C
             value={intent}
             disabled={!editable}
             placeholder="In a sentence or two: the outcome, and why."
+            onFocus={() => (editingIntent.current = true)}
             onInput={e => setIntent((e.target as HTMLTextAreaElement).value)}
-            onBlur={() => editable && api.setIntent(intent).catch(e => setError(e.message))}
+            onBlur={() => {
+              editingIntent.current = false
+              if (editable) api.setIntent(intent).catch(e => setError(e.message))
+            }}
           />
         </section>
         <div class="submit-box">
@@ -347,13 +357,9 @@ export function Edit({ model, view, onSubmitted }: { model: SystemModel; view: C
             {selEdge.kind === 'branch' && editable && selEdge.mark === 'added' && (
               <label class="field">
                 When
-                <input
-                  type="text"
+                <DraftField
                   value={selEdge.when ?? ''}
-                  onChange={e => {
-                    const when = (e.target as HTMLInputElement).value
-                    commit(ops.map(o => (o.op === 'addBranch' && o.from === selEdge.from && o.to === selEdge.to ? { ...o, when } : o)))
-                  }}
+                  onCommit={when => commit(ops.map(o => (o.op === 'addBranch' && o.from === selEdge.from && o.to === selEdge.to ? { ...o, when } : o)))}
                 />
               </label>
             )}
@@ -378,11 +384,43 @@ export function Edit({ model, view, onSubmitted }: { model: SystemModel; view: C
   }
 }
 
+/**
+ * A text field that commits on Enter or blur, and keeps what the engineer is
+ * typing while the editor refreshes underneath it.
+ */
+function DraftField(props: { value: string; multiline?: boolean; rows?: number; placeholder?: string; label?: string; onCommit: (value: string) => void }) {
+  const [draft, setDraft] = useState(props.value)
+  const editing = useRef(false)
+  useEffect(() => {
+    if (!editing.current) setDraft(props.value)
+  }, [props.value])
+  const commit = () => {
+    editing.current = false
+    if (draft !== props.value) props.onCommit(draft)
+  }
+  const common = {
+    value: draft,
+    placeholder: props.placeholder,
+    'aria-label': props.label,
+    onFocus: () => (editing.current = true),
+    onInput: (e: Event) => {
+      editing.current = true
+      setDraft((e.target as HTMLInputElement).value)
+    },
+    onBlur: commit,
+  }
+  return props.multiline ? (
+    <textarea rows={props.rows ?? 3} {...common} />
+  ) : (
+    <input type="text" {...common} onKeyDown={e => e.key === 'Enter' && commit()} />
+  )
+}
+
 function NewNodeInspector({ op, onChange }: { op: Extract<Op, { op: 'addNode' }>; onChange: (patch: Partial<Extract<Op, { op: 'addNode' }>>) => void }) {
   const field = (key: 'label' | 'file' | 'takes' | 'returns', label: string, placeholder = '') => (
     <label class="field">
       {label}
-      <input type="text" value={(op[key] as string) ?? ''} placeholder={placeholder} onChange={e => onChange({ [key]: (e.target as HTMLInputElement).value })} />
+      <DraftField value={(op[key] as string) ?? ''} placeholder={placeholder} onCommit={value => onChange({ [key]: value })} />
     </label>
   )
   return (
@@ -401,7 +439,7 @@ function NewNodeInspector({ op, onChange }: { op: Extract<Op, { op: 'addNode' }>
       {field('returns', 'Returns', 'risk score, 0 to 1')}
       <label class="field">
         Notes for Claude
-        <textarea rows={3} value={op.note ?? ''} onChange={e => onChange({ note: (e.target as HTMLTextAreaElement).value })} />
+        <DraftField multiline value={op.note ?? ''} onCommit={note => onChange({ note })} />
       </label>
     </>
   )
